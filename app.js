@@ -1737,6 +1737,7 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
         
         const tdOrg = document.createElement('td');
         tdOrg.setAttribute('data-label', 'Organik');
+        tdOrg.classList.add('bg-organic');
         tdOrg.innerHTML = `
             <div class="waste-toggle-group">
                 <button type="button" class="waste-toggle-btn btn-sorted ${orgState === 'sorted' ? 'active' : ''}" onclick="handleQuickToggleWaste('${fac}', 'organik', 'sorted')"><i class="fas fa-check"></i> <span class="desktop-text">Sudah</span><span class="mobile-text">S</span></button>
@@ -1746,6 +1747,7 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
         
         const tdInorg = document.createElement('td');
         tdInorg.setAttribute('data-label', 'Anorganik');
+        tdInorg.classList.add('bg-inorganic');
         tdInorg.innerHTML = `
             <div class="waste-toggle-group">
                 <button type="button" class="waste-toggle-btn btn-sorted ${inorgState === 'sorted' ? 'active' : ''}" onclick="handleQuickToggleWaste('${fac}', 'anorganik', 'sorted')"><i class="fas fa-check"></i> <span class="desktop-text">Sudah</span><span class="mobile-text">S</span></button>
