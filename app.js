@@ -63,32 +63,7 @@ const DEFAULT_VEHICLES = [
     }
 ];
 
-const DEFAULT_COMPLAINTS = [
-    {
-        id: "sample_waste_1",
-        reporter: "Siswa 1",
-        role: "Siswa",
-        contact: "",
-        location: "Ruang Kelas XII F-2",
-        category: "Sampah Plastik Bercampur",
-        desc: "Banyak botol plastik di tempat sampah kertas",
-        status: "Pending",
-        response: "",
-        createdAt: new Date().toISOString()
-    },
-    {
-        id: "sample_waste_2",
-        reporter: "Guru Piket",
-        role: "Guru",
-        contact: "",
-        location: "Perpustakaan",
-        category: "Tempat Sampah Penuh",
-        desc: "Tempat sampah depan perpustakaan sudah penuh dan berserakan",
-        status: "Pending",
-        response: "",
-        createdAt: new Date().toISOString()
-    }
-];
+const DEFAULT_COMPLAINTS = [];
 
 // --- Default Barang Habis Pakai ---
 const DEFAULT_CONSUMABLES = [
@@ -1761,8 +1736,8 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
         tdOrg.setAttribute('data-label', 'Organik');
         tdOrg.innerHTML = `
             <div class="waste-toggle-group">
-                <button type="button" class="waste-toggle-btn btn-sorted ${orgState === 'sorted' ? 'active' : ''}" onclick="handleQuickToggleWaste('${fac}', 'organik', 'sorted')"><i class="fas fa-check"></i> Sudah</button>
-                <button type="button" class="waste-toggle-btn btn-unsorted ${orgState === 'unsorted' ? 'active' : ''}" onclick="handleQuickToggleWaste('${fac}', 'organik', 'unsorted')"><span class="dot"></span> Belum</button>
+                <button type="button" class="waste-toggle-btn btn-sorted ${orgState === 'sorted' ? 'active' : ''}" onclick="handleQuickToggleWaste('${fac}', 'organik', 'sorted')"><i class="fas fa-check"></i> <span class="desktop-text">Sudah</span><span class="mobile-text">S</span></button>
+                <button type="button" class="waste-toggle-btn btn-unsorted ${orgState === 'unsorted' ? 'active' : ''}" onclick="handleQuickToggleWaste('${fac}', 'organik', 'unsorted')"><span class="dot"></span> <span class="desktop-text">Belum</span><span class="mobile-text">B</span></button>
             </div>
         `;
         
@@ -1770,8 +1745,8 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
         tdInorg.setAttribute('data-label', 'Anorganik');
         tdInorg.innerHTML = `
             <div class="waste-toggle-group">
-                <button type="button" class="waste-toggle-btn btn-sorted ${inorgState === 'sorted' ? 'active' : ''}" onclick="handleQuickToggleWaste('${fac}', 'anorganik', 'sorted')"><i class="fas fa-check"></i> Sudah</button>
-                <button type="button" class="waste-toggle-btn btn-unsorted ${inorgState === 'unsorted' ? 'active' : ''}" onclick="handleQuickToggleWaste('${fac}', 'anorganik', 'unsorted')"><span class="dot"></span> Belum</button>
+                <button type="button" class="waste-toggle-btn btn-sorted ${inorgState === 'sorted' ? 'active' : ''}" onclick="handleQuickToggleWaste('${fac}', 'anorganik', 'sorted')"><i class="fas fa-check"></i> <span class="desktop-text">Sudah</span><span class="mobile-text">S</span></button>
+                <button type="button" class="waste-toggle-btn btn-unsorted ${inorgState === 'unsorted' ? 'active' : ''}" onclick="handleQuickToggleWaste('${fac}', 'anorganik', 'unsorted')"><span class="dot"></span> <span class="desktop-text">Belum</span><span class="mobile-text">B</span></button>
             </div>
         `;
         

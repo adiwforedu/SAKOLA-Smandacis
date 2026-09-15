@@ -248,7 +248,22 @@ body.admin-mode .cms-editable:hover::after {
     color: white;
 }
 
+/* Sticky Table Header */
+.quick-report-table thead th {
+    position: sticky;
+    top: 75px; /* Sesuaikan dengan tinggi header utama */
+    background: #f8fafc;
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Mobile Texts & Optimizations */
+.mobile-text { display: none; }
 @media (max-width: 768px) {
+    .desktop-text { display: none !important; }
+    .mobile-text { display: inline !important; }
+
+    /* Fix Safari layout bug and optimize space */
     .quick-report-table-wrapper {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
@@ -256,9 +271,79 @@ body.admin-mode .cms-editable:hover::after {
         padding: 0 1rem;
     }
     .quick-report-table {
-        min-width: 600px; /* Force table to be wider than screen to enable scrolling, keeping it single line */
+        min-width: 100%;
+        width: 100%;
+    }
+    .quick-report-table thead {
+        display: table-header-group !important;
+    }
+    .quick-report-table tbody tr {
+        display: table-row !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+    }
+    .quick-report-table tbody tr::before {
+        display: none !important; /* Hide left border highlight that breaks table layout */
+    }
+    .quick-report-table td, .quick-report-table th {
+        display: table-cell !important;
+        white-space: nowrap !important;
+        padding: 10px 4px !important;
+    }
+    .quick-report-table td::before {
+        display: none !important; /* Hide data-labels for rows */
+    }
+    .waste-toggle-btn {
+        padding: 4px 8px; /* Lebih ringkas di HP */
+        font-size: 0.85rem;
+    }
+    .btn-detail-quick {
+        padding: 4px 8px; /* Lebih ringkas di HP */
+    }
+    .quick-report-table thead th {
+        top: 65px; /* Offset header slightly different on mobile if needed */
+    }
+    .quick-report-header > div:last-child {
+        justify-content: flex-start;
+        width: 100%;
+    }
+    .quick-report-header .btn {
+        padding: 6px 10px;
+        font-size: 0.8rem;
+        flex: 1 1 auto;
+        justify-content: center;
+        text-align: center;
     }
 }
+
+.quick-report-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.quick-report-filter-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.quick-report-filter-pills .pill-btn {
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--glass-border);
+    background: white;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+.quick-report-filter-pills .pill-btn.active {
+    background: var(--color-primary);
+    color: white !important;
+}
+
 .logo-container {
     display: flex;
     align-items: center;
