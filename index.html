@@ -1,0 +1,1871 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>SAKOLA - SMAN 2 CIAMIS</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+        integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <!-- Choices.js (Premium Select UI) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div id="app">
+        <header class="glass-header">
+            <div class="header-content">
+                <div class="logo-container">
+                    <img src="logo.png" alt="Logo SAKOLA" class="app-logo"
+                        onerror="this.outerHTML='<i class=\'fas fa-school logo-icon\'></i>';">
+                    <div>
+                        <!-- CMS Editable Text -->
+                        <h1 id="cms-header-title" class="cms-editable" data-cms-key="headerTitle">SAKOLA - SMAN 2 CIAMIS</h1>
+                        <p id="cms-header-subtitle" class="cms-editable" data-cms-key="headerSubtitle">Sistem Analisis Kendali Orientasi Lingkungan Adiwiyata</p>
+                    </div>
+                </div>
+                <!-- Sync Indicator + DB Settings -->
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <div id="gasSyncIndicator" class="sync-indicator sync-idle" title="Status Database" onclick="if(typeof gasConfig !== 'undefined' && window.isAdmin) gasConfig.renderSettingsPanel()" style="cursor:pointer;">
+                        <span class="sync-dot"></span>
+                        <span class="sync-text">Belum Terhubung</span>
+                    </div>
+                    <button id="adminLoginBtn" class="btn btn-secondary glass" title="Otorisasi Akses (Login)"
+                        style="padding: 6px 14px; gap: 6px; display: flex; align-items: center; font-size: 0.85rem; font-weight: 600; border-radius: 8px;">
+                        <i class="fas fa-lock" style="color: var(--color-primary);"></i> <span>Login</span>
+                    </button>
+                    <button id="adminLogoutBtn" class="btn btn-secondary glass hidden" title="Keluar / Logout"
+                        style="padding: 6px 14px; gap: 6px; display: flex; align-items: center; font-size: 0.85rem; font-weight: 600; border-radius: 8px;">
+                        <i class="fas fa-lock-open" style="color: #e11d48;"></i> <span id="adminStatusText">Keluar</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="container">
+            <!-- Navigasi Tab Utama (Dinamis dari GAS MenuConfig) -->
+            <div id="dynamicNavTabs" class="nav-tabs glass"
+                style="display: flex; gap: 8px; margin-bottom: 1.5rem; padding: 6px; border-radius: 12px; background: rgba(255,255,255,0.06); flex-wrap: wrap;">
+                <!-- Default tabs (akan diganti/dilengkapi oleh JS setelah load MenuConfig) -->
+                <button id="tabHompimpahBtn" class="tab-btn active" data-tab="hompimpah">
+                    <span style="font-size:1.1em;">♻️</span> HOMPIMPAH
+                </button>
+                <button id="tabNadiHijauBtn" class="tab-btn" data-tab="nadihijau">
+                    <span style="font-size:1.1em;">🌿</span> NADI HIJAU
+                </button>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="loadingIndicator" class="loading-spinner hidden">
+                <div class="spinner"></div>
+                <p>Memuat data...</p>
+            </div>
+
+            <!-- Section 1: Sarana & Prasarana (Jadwal Acara) -->
+            <section id="sarprasSection" class="hidden">
+                <div class="action-bar">
+                    <div class="search-box glass">
+                        <i class="fas fa-search"></i>
+                        <input type="search" id="searchInput" name="search_query_sarpras" autocomplete="off"
+                            autocorrect="off" spellcheck="false" placeholder="Cari acara atau fasilitas...">
+                    </div>
+                </div>
+
+                <h2 id="cms-main-heading" class="cms-editable section-title" data-cms-key="mainHeading">Jadwal
+                    Penggunaan
+                    Mendatang</h2>
+
+                <!-- Events Grid -->
+                <div id="eventsGrid" class="events-grid">
+                    <!-- Event cards will be injected here by JS -->
+                </div>
+            </section>
+
+            <!-- Section 2: Modul Kendaraan Operasional -->
+            <section id="vehiclesSection" class="hidden">
+                <div class="action-bar">
+                    <div class="search-box glass">
+                        <i class="fas fa-search"></i>
+                        <input type="search" id="vehicleSearchInput" name="search_query_vehicle" autocomplete="off"
+                            autocorrect="off" spellcheck="false"
+                            placeholder="Cari nama kendaraan, plat nomor, atau jenis...">
+                    </div>
+
+                    <div id="adminVehicleActions" class="admin-actions hidden">
+                        <button class="btn btn-primary" id="addVehicleBtn"><i class="fas fa-plus"></i> Tambah
+                            Kendaraan</button>
+                    </div>
+                </div>
+
+                <!-- Alert Banner Peringatan Pajak & Ganti Oli -->
+                <div id="vehicleAlertBanner" class="alert-banner-box"></div>
+
+                <h2 class="section-title">Daftar Kendaraan Operasional Sekolah</h2>
+
+                <!-- Vehicles Grid -->
+                <div id="vehiclesGrid" class="events-grid">
+                    <!-- Vehicle cards will be injected here by JS -->
+                </div>
+            </section>
+
+            <!-- Section 3: Modul Pengaduan & Aspirasi Warga Sekolah -->
+            <section id="complaintsSection">
+                <div class="action-bar" style="justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 10px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <button class="btn btn-primary" id="addComplaintBtn" style="background: linear-gradient(135deg, #166534, #15803d); box-shadow: 0 4px 14px rgba(22, 101, 52, 0.35);">
+                            <i class="fas fa-camera"></i> 📝 Lapor Detail (Form &amp; Foto)
+                        </button>
+                        <a href="#quickReportSection" class="btn btn-secondary glass" id="jumpQuickReportBtn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 8px; font-weight: 600;">
+                            <i class="fas fa-bolt" style="color: #eab308;"></i> ⚡ Lapor Cepat (Daftar Fasilitas)
+                        </a>
+                    </div>
+
+                    <!-- Admin Actions for Map and Facilities -->
+                    <div id="adminActions" class="admin-actions hidden">
+                        <button class="btn btn-secondary" id="manageFacilitiesBtn"><i class="fas fa-tools"></i> Kelola
+                            Fasilitas</button>
+                        <button class="btn btn-secondary" id="mapEditorBtn"><i class="fas fa-map"></i> Pemetaan
+                            Denah</button>
+                        <button class="btn btn-primary" onclick="openReportModal()"><i class="fas fa-file-alt"></i> Rekapitulasi & Laporan</button>
+                    </div>
+                </div>
+
+                <!-- Pemetaan Denah Status Pengaduan -->
+                <div class="map-container glass"
+                    style="margin-top: 1.2rem; margin-bottom: 1.5rem; padding: 1.2rem; border-radius: 16px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 0.8rem;">
+                        <div>
+                            <h3
+                                style="margin: 0; font-size: 1.15rem; color: var(--color-primary); display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-map-marked-alt"></i> Pemetaan Denah Visualisasi Pemilahan Sampah
+                            </h3>
+                            <p style="font-size: 0.82rem; color: var(--color-text-muted); margin: 2px 0 0 0;">
+                                Status Real-time: Merah berkedip menandakan sampah belum dipilah di ruangan tersebut.
+                            </p>
+                        </div>
+                        <!-- Legend Status Warna -->
+                        <div class="map-complaint-legend"
+                            style="display: flex; gap: 12px; font-size: 0.82rem; font-weight: 600; flex-wrap: wrap; background: rgba(255,255,255,0.6); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--glass-border);">
+                            <span style="display: inline-flex; align-items: center; gap: 6px;"><i class="fas fa-square"
+                                    style="color: #10b981;"></i> Hijau: Sudah Dipilah</span>
+                            <span style="display: inline-flex; align-items: center; gap: 6px;"><i class="fas fa-square"
+                                    style="color: #e11d48;"></i> Merah (Berkedip): Belum Dipilah</span>
+                        </div>
+                    </div>
+
+                    <div class="map-wrapper" id="complaintsMapWrapper"
+                        style="position: relative; border-radius: 12px; overflow: hidden; background: #f8fafc; border: 1px solid var(--glass-border);">
+                        <img src="denah.png" alt="Denah Sekolah" id="complaintsSchoolMap"
+                            style="width: 100%; height: auto; display: block;"
+                            onerror="this.onerror=null; this.src='https://placehold.co/800x600/eeeeee/999999?text=Denah+Belum+Diunggah';">
+                        <!-- Dynamic Facility Status Overlay Boxes will be injected here by JS -->
+                    </div>
+                </div>
+
+                <!-- Modul Lapor Cepat Pemilahan Sampah per Fasilitas (Fitur 2) -->
+                <div class="quick-report-container glass" id="quickReportSection">
+                    <div class="quick-report-header">
+                        <div>
+                            <h3 class="quick-report-title">
+                                <i class="fas fa-clipboard-check"></i> ⚡ Lapor Cepat Pemilahan Sampah per Fasilitas
+                            </h3>
+                            <p class="quick-report-subtitle">
+                                Klik langsung opsi <strong>Sudah Dipilah</strong> (🟢) atau <strong>Belum Dipilah</strong> (🔴) pada kategori Organik &amp; Anorganik di setiap ruangan.
+                            </p>
+                        </div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                            <input type="date" id="quickReportDate" class="form-control" style="padding: 0.5rem; border-radius: 8px; border: 1px solid var(--color-border); width: auto;" title="Tanggal Pemantauan (Opsional)">
+                            <button type="button" class="btn btn-secondary glass" id="markAllSortedBtn" title="Tandai semua ruangan sudah dipilah">
+                                <i class="fas fa-check-double" style="color: #10b981;"></i> Tandai Semua Terpilah
+                            </button>
+                            <button type="button" class="btn btn-secondary glass" id="markAllUnsortedBtn" title="Tandai semua ruangan belum dipilah">
+                                <i class="fas fa-times-circle" style="color: #ef4444;"></i> Tandai Semua Belum
+                            </button>
+                            <button type="button" class="btn btn-secondary glass" id="clearAllStatusBtn" title="Bersihkan semua status pilihan">
+                                <i class="fas fa-eraser" style="color: #64748b;"></i> Bersihkan Semua
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Statistik Ringkas Pemilahan Sampah -->
+                    <div class="waste-stats-grid">
+                        <div class="waste-stat-card glass">
+                            <div class="waste-stat-icon icon-building">
+                                <i class="fas fa-school"></i>
+                            </div>
+                            <div>
+                                <div class="waste-stat-label">Total Fasilitas</div>
+                                <div id="statTotalRooms" class="waste-stat-value">0</div>
+                            </div>
+                        </div>
+                        <div class="waste-stat-card glass">
+                            <div class="waste-stat-icon icon-clean">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div>
+                                <div class="waste-stat-label">Sudah Terpilah Rapi</div>
+                                <div id="statCleanRooms" class="waste-stat-value val-clean">0</div>
+                            </div>
+                        </div>
+                        <div class="waste-stat-card glass">
+                            <div class="waste-stat-icon icon-organic">
+                                <i class="fas fa-apple-alt"></i>
+                            </div>
+                            <div>
+                                <div class="waste-stat-label">Perlu Pilah Organik</div>
+                                <div id="statPendingOrganic" class="waste-stat-value val-danger">0</div>
+                            </div>
+                        </div>
+                        <div class="waste-stat-card glass">
+                            <div class="waste-stat-icon icon-inorganic">
+                                <i class="fas fa-recycle"></i>
+                            </div>
+                            <div>
+                                <div class="waste-stat-label">Perlu Pilah Anorganik</div>
+                                <div id="statPendingInorganic" class="waste-stat-value val-warning">0</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Toolbar Filter & Search -->
+                    <div class="quick-report-toolbar">
+                        <div class="search-box glass quick-search-box" style="padding: 0;">
+                            <select id="quickReportSearchInput" style="width: 100%; border: none; background: transparent; padding: 10px 14px; font-size: 0.95rem; outline: none; cursor: pointer; color: var(--color-text);">
+                                <option value="">-- Semua Fasilitas / Ruangan --</option>
+                                <!-- Opsi fasilitas akan diisi via JS -->
+                            </select>
+                        </div>
+                        <div class="quick-report-filter-pills">
+                            <button type="button" class="pill-btn active" data-quick-filter="all">Semua Ruangan</button>
+                            <button type="button" class="pill-btn" data-quick-filter="unsorted" style="color: #e11d48;"><i class="fas fa-exclamation-circle"></i> Belum Dipilah</button>
+                            <button type="button" class="pill-btn" data-quick-filter="sorted" style="color: #059669;"><i class="fas fa-check"></i> Sudah Terpilah</button>
+                        </div>
+                    </div>
+
+                    <!-- Container Tabel / List Lapor Cepat -->
+                    <div class="quick-report-table-wrapper">
+                        <table class="quick-report-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-fac-name">Nama Fasilitas / Ruangan</th>
+                                    <th class="col-waste-cat">
+                                        <span class="th-cat-title cat-organic"><i class="fas fa-apple-alt"></i> Sampah Organik</span>
+                                    </th>
+                                    <th class="col-waste-cat">
+                                        <span class="th-cat-title cat-inorganic"><i class="fas fa-recycle"></i> Sampah Anorganik</span>
+                                    </th>
+                                    <th class="col-action">Lapor Detail</th>
+                                </tr>
+                            </thead>
+                            <tbody id="quickReportTableBody">
+                                <!-- Data baris fasilitas diinjeksi secara reaktif oleh JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+
+            </section>
+
+            <!-- Modal Map Action (Mini Modal untuk klik Peta) -->
+            <div id="mapActionModal" class="modal-overlay hidden" style="z-index: 1100;">
+                <div class="modal-content glass" style="max-width: 400px; padding: 1.5rem;">
+                    <div class="modal-header" style="border-bottom: none; padding-bottom: 0;">
+                        <h2 id="mapActionTitle" style="font-size: 1.25rem; color: var(--color-primary); margin: 0;">Aksi Cepat</h2>
+                        <button class="close-modal" onclick="document.getElementById('mapActionModal').classList.add('hidden')"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="modal-body" style="padding-top: 10px; text-align: center;">
+                        <p style="margin-bottom: 20px; font-size: 0.95rem; color: var(--color-text-muted);">Pilih status pemilahan sampah untuk ruangan ini:</p>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 15px;">
+                            <div style="background: rgba(225, 29, 72, 0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(225, 29, 72, 0.1);">
+                                <h4 style="margin: 0 0 10px 0; color: #16a34a;"><i class="fas fa-apple-alt"></i> Sampah Organik</h4>
+                                <div id="mapActionOrganicGroup" class="waste-toggle-group" style="width: 100%; display: flex;">
+                                    <!-- Tombol di-render via JS -->
+                                </div>
+                            </div>
+                            
+                            <div style="background: rgba(37, 99, 235, 0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(37, 99, 235, 0.1);">
+                                <h4 style="margin: 0 0 10px 0; color: #2563eb;"><i class="fas fa-recycle"></i> Sampah Anorganik</h4>
+                                <div id="mapActionInorganicGroup" class="waste-toggle-group" style="width: 100%; display: flex;">
+                                    <!-- Tombol di-render via JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="margin-top: 20px; border-top: none; justify-content: center;">
+                        <button class="btn btn-secondary" onclick="document.getElementById('mapActionModal').classList.add('hidden')">Tutup</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section: Nadi Hijau -->
+            <section id="nadiHijauSection" class="hidden" style="margin-top: 1rem;">
+                <div class="pepeling-container glass"
+                    style="padding: 2rem; border-radius: 12px; font-family: 'Times New Roman', Times, serif; background-color: #ffffff; color: #000000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <div class="pepeling-header-top"
+                        style="text-align: right; font-size: 0.85rem; color: #888; font-style: italic; margin-bottom: 10px;">
+                        SMA Negeri 2 Ciamis &amp; Kegiatan Pepeling
+                    </div>
+                    <div class="pepeling-header-title" style="text-align: center; color: #1a5c28; margin-bottom: 25px;">
+                        <h1 style="font-size: 1.5rem; font-weight: bold; margin: 5px 0;">PEMBAGIAN TUGAS KEGIATAN
+                            PEPELING</h1>
+                        <h2 style="font-size: 1.25rem; font-weight: bold; margin: 5px 0;">SMA NEGERI 2 CIAMIS</h2>
+                        <p
+                            style="color: #888; font-style: italic; font-size: 1rem; font-weight: normal; margin: 5px 0;">
+                            Pemetaan MGMP Pendamping bersama Kader Adiwiyata per Area</p>
+                    </div>
+
+                    <div style="overflow-x: auto;">
+                        <table class="pepeling-table"
+                            style="width: 100%; border-collapse: collapse; font-size: 0.95rem; border: 1px solid #d4e6d4; font-family: 'Inter', sans-serif;">
+                            <thead>
+                                <tr>
+                                    <th
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #1a5c28; color: #ffffff; font-weight: bold; text-align: center; text-transform: uppercase;">
+                                        NO</th>
+                                    <th
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #1a5c28; color: #ffffff; font-weight: bold; text-align: left; text-transform: uppercase;">
+                                        AREA PEPELING</th>
+                                    <th
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #1a5c28; color: #ffffff; font-weight: bold; text-align: left; text-transform: uppercase;">
+                                        MGMP PENDAMPING</th>
+                                    <th
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #1a5c28; color: #ffffff; font-weight: bold; text-align: center; text-transform: uppercase;">
+                                        KADER ADIWIYATA<br>(KELAS BERTUGAS)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        01</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        Lobi</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Bahasa Indonesia & Bahasa Sunda</span><span class="leaf-reward"
+                                                id="star-MGMP Bahasa Indonesia dan Bahasa Sunda"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas F8</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        02</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        Gazebo</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Bahasa Inggris</span><span class="leaf-reward"
+                                                id="star-MGMP Bahasa Inggris"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas E7, E8</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        03</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        DPR</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Pendidikan Pancasila</span><span class="leaf-reward"
+                                                id="star-MGMP Pendidikan Pancasila"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas E9, E10</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        04</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        Ruang Guru, TU & Wakasek</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Matematika</span><span class="leaf-reward" id="star-MGMP Matematika"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas E11, E12</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        05</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        Masjid</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>PAI & Budi Pekerti, serta Bahasa Arab</span><span class="leaf-reward"
+                                                id="star-MGMP PAI & Budi Pekerti, Bahasa Arab"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas F1, F2</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        06</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        GOR</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>PJOK (Pendidikan Jasmani, Olahraga & Kesehatan)</span><span
+                                                class="leaf-reward" id="star-MGMP PJOK"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas F3, F4</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        07</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        Kantin & Lapang Basket</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Ekonomi</span><span class="leaf-reward" id="star-MGMP Ekonomi"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas F5</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        08</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        Taman Lapang Basket</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Seni dan Budaya</span><span class="leaf-reward"
+                                                id="star-MGMP Seni dan Budaya"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas F6</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        09</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        Aula</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Sejarah</span><span class="leaf-reward" id="star-MGMP Sejarah"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas F7</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        10</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        Bank Sampah</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Sosiologi & Geografi</span><span class="leaf-reward"
+                                                id="star-MGMP Sosiologi dan Geografi"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas E1</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        11</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        Warung Hidup</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Prakarya dan Kewirausahaan</span><span class="leaf-reward"
+                                                id="star-MGMP Prakarya dan Kewirausahaan"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas F9</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        12</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        Apotek Hidup</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Bimbingan dan Konseling</span><span class="leaf-reward"
+                                                id="star-MGMP Bimbingan dan Konseling"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas F10</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        13</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        Green House</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Kimia & Biologi</span><span class="leaf-reward"
+                                                id="star-MGMP Kimia dan Biologi"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas F11</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        14</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        Komposter</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Informatika & Koding, serta Kecerdasan Artifisial</span><span
+                                                class="leaf-reward" id="star-MGMP Informatika, Koding, & AI"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas F12</td>
+                                </tr>
+                                <tr>
+                                    <td class="col-no"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; text-align: center; font-weight: bold; color: #1a5c28; width: 40px;">
+                                        15</td>
+                                    <td class="col-area"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; font-weight: bold; width: 25%;">
+                                        Drainase</td>
+                                    <td class="col-mgmp"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #fff9e6; color: #947116; font-weight: bold; width: 40%;">
+                                        <div class="mgmp-name"
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span>Fisika</span><span class="leaf-reward" id="star-MGMP Fisika"
+                                                style="display: none; margin-left: 10px;"><svg class="leaf-icon"
+                                                    xmlns="http://www.w3.org/2000/svg" width="28" height="28"
+                                                    viewBox="0 0 24 24" fill="#32CD32" stroke="#006400"
+                                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                                    style="vertical-align: middle;">
+                                                    <path
+                                                        d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                                                </svg></span></div>
+                                    </td>
+                                    <td class="col-kader"
+                                        style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
+                                        Kelas E2 &amp; E6<br>
+                                        <div class="col-kader-small"
+                                            style="font-weight: normal; font-style: italic; font-size: 0.85rem; color: #555; text-align: center; margin-top: 5px;">
+                                            E2: Kls XII & Bank Sampah<br>
+                                            E3: Gazebo<br>
+                                            E4: PMR & BK<br>
+                                            E5: DPR & Wakasek<br>
+                                            E6: Lobi & Ruang Guru
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="pepeling-catatan" style="margin-top: 15px; font-size: 0.95rem; line-height: 1.6;">
+                        <strong style="color: #1a5c28; display: block; margin-bottom: 5px;">Catatan:</strong>
+                        <ol style="margin: 0; padding-left: 20px;">
+                            <li>Wali Kelas mendampingi dan melaksanakan kegiatan Pepeling di lingkungan kelasnya
+                                terlebih dahulu.
+                            </li>
+                            <li>MGMP Pendamping bertugas membersamai dan membina Kader Adiwiyata pada area yang menjadi
+                                tanggung
+                                jawabnya.</li>
+                        </ol>
+                    </div>
+
+                    <!-- Upload Feature Section -->
+                    <div class="pepeling-upload-section"
+                        style="text-align: center; margin-top: 40px; padding-top: 25px; border-top: 1px dashed #ccc; font-family: 'Inter', sans-serif;">
+                        <button class="btn-fab-upload" onclick="pepelingOpenUploadModal()"
+                            style="display: inline-flex; align-items: center; justify-content: center; gap: 10px; background: #1a5c28; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            Upload Laporan / Video
+                        </button>
+                    </div>
+
+                    <!-- Upload Modal -->
+                    <div class="modal hidden" id="pepelingUploadModal"
+                        style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center;">
+                        <div class="modal-content glass" style="max-width: 600px; padding: 0;">
+                            <div class="modal-header"
+                                style="background: #f8f9fa; padding: 15px 20px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                                <h3 style="margin: 0; font-size: 1.2rem;">Formulir Upload Pepeling</h3>
+                                <button class="btn-close-modal"
+                                    style="background: none; border: none; font-size: 1.5rem; cursor: pointer;"
+                                    onclick="pepelingCloseUploadModal()">&times;</button>
+                            </div>
+                            <div class="modal-body" style="padding: 20px;">
+                                <form id="pepeling-submission-form" onsubmit="return false;">
+                                    <div class="form-group" style="margin-bottom: 15px;">
+                                        <label for="mgmp-select"
+                                            style="font-weight: bold; margin-bottom: 5px; display: block;">Pilih Forum
+                                            MGMP Pendamping <span style="color: red;">*</span></label>
+                                        <select id="mgmp-select" class="form-control" required
+                                            style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #ccc;">
+                                            <option value="" disabled selected>-- Pilih MGMP Sekolah --</option>
+                                            <option value="MGMP PAI & Budi Pekerti, Bahasa Arab">MGMP PAI & Budi
+                                                Pekerti, Bahasa Arab</option>
+                                            <option value="MGMP Pendidikan Pancasila">MGMP Pendidikan Pancasila</option>
+                                            <option value="MGMP Bahasa Indonesia dan Bahasa Sunda">MGMP Bahasa Indonesia
+                                                dan Bahasa Sunda</option>
+                                            <option value="MGMP Matematika">MGMP Matematika</option>
+                                            <option value="MGMP Fisika">MGMP Fisika</option>
+                                            <option value="MGMP Kimia dan Biologi">MGMP Kimia dan Biologi</option>
+                                            <option value="MGMP Sosiologi dan Geografi">MGMP Sosiologi dan Geografi
+                                            </option>
+                                            <option value="MGMP Ekonomi">MGMP Ekonomi</option>
+                                            <option value="MGMP Sejarah">MGMP Sejarah</option>
+                                            <option value="MGMP Bahasa Inggris">MGMP Bahasa Inggris</option>
+                                            <option value="MGMP PJOK">MGMP PJOK</option>
+                                            <option value="MGMP Informatika, Koding, & AI">MGMP Informatika, Koding, &
+                                                AI</option>
+                                            <option value="MGMP Prakarya dan Kewirausahaan">MGMP Prakarya dan
+                                                Kewirausahaan</option>
+                                            <option value="MGMP Seni dan Budaya">MGMP Seni dan Budaya</option>
+                                            <option value="MGMP Bimbingan dan Konseling">MGMP Bimbingan dan Konseling
+                                            </option>
+                                        </select>
+                                    </div>
+
+
+                                    <div id="pepeling-drop-zone" class="upload-zone"
+                                        style="border: 2px dashed #ccc; border-radius: 4px; padding: 30px 15px; text-align: center; background: #fafafa; position: relative; cursor: pointer; margin-bottom: 15px;">
+                                        <h4 style="margin: 10px 0 5px;">Klik atau Tarik Video ke Sini</h4>
+                                        <p style="margin: 0; color: #777; font-size: 0.85rem;">Format: MP4, MOV, MKV
+                                            (Durasi bebas)</p>
+                                        <input type="file" id="pepeling-file-input"
+                                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"
+                                            accept="video/mp4,video/quicktime,video/x-matroska,video/webm">
+                                    </div>
+
+                                    <div id="pepeling-analyzer-panel" class="analyzer-panel hidden"
+                                        style="display: none; background: #f8f9fa; border: 1px solid #eee; border-radius: 4px; padding: 15px;">
+                                        <video id="pepeling-video-preview" controls
+                                            style="width: 100%; border-radius: 4px; max-height: 300px; background: #000; margin-bottom: 15px;"></video>
+                                        <div class="metric-box" style="margin-bottom: 15px;">
+                                            <div class="metric-info">
+                                                <h5 style="margin: 0 0 5px; color: #555;">Durasi Video Terdeteksi</h5>
+                                                <div><span id="pepeling-duration-val">00:00</span> (<span
+                                                        id="pepeling-seconds-val">0</span> detik)
+                                                </div>
+                                            </div>
+                                            <div id="pepeling-status-badge" class="status-badge warning"
+                                                style="margin-top: 5px; display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; background: #fff3cd; color: #856404;">
+                                                Menganalisis...</div>
+                                        </div>
+
+                                        <button id="pepeling-submit-btn" class="btn-submit" disabled
+                                            style="width: 100%; padding: 12px; background: #1a5c28; color: white; border: none; border-radius: 4px; font-weight: bold; font-size: 1rem; cursor: not-allowed; margin-top: 15px;">VERIFIKASI
+                                            AI BELUM SELESAI</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4: Barang Habis Pakai (Stok & Mutasi) -->
+            <section id="consumablesSection" class="hidden" style="margin-top: 1rem;">
+                <!-- Summary Statistics Cards -->
+                <div class="summary-cards"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div id="cardStatTotal" class="stat-card glass"
+                        style="padding: 1rem; border-radius: 12px; display: flex; align-items: center; gap: 1rem; cursor: pointer;"
+                        title="Tampilkan Semua Barang">
+                        <div class="stat-icon"
+                            style="background: rgba(37, 99, 235, 0.1); color: var(--color-primary); width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+                            <i class="fas fa-boxes"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.85rem; color: #64748b; font-weight: 500;">Total Jenis Barang</div>
+                            <div id="statTotalConsumables"
+                                style="font-size: 1.4rem; font-weight: 700; color: var(--color-text);">0</div>
+                        </div>
+                    </div>
+                    <div id="cardStatLowStock" class="stat-card glass"
+                        style="padding: 1rem; border-radius: 12px; display: flex; align-items: center; gap: 1rem; cursor: pointer;"
+                        title="Klik untuk Filter Barang Stok Kritis">
+                        <div class="stat-icon"
+                            style="background: rgba(225, 29, 72, 0.1); color: #e11d48; width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.85rem; color: #64748b; font-weight: 500;">Stok Kritis / Warning
+                            </div>
+                            <div id="statLowStockConsumables"
+                                style="font-size: 1.4rem; font-weight: 700; color: #e11d48;">0</div>
+                        </div>
+                    </div>
+                    <div id="cardStatMutations" class="stat-card glass"
+                        style="padding: 1rem; border-radius: 12px; display: flex; align-items: center; gap: 1rem; cursor: pointer;"
+                        title="Klik untuk Lihat Riwayat Mutasi">
+                        <div class="stat-icon"
+                            style="background: rgba(16, 185, 129, 0.1); color: #10b981; width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+                            <i class="fas fa-exchange-alt"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.85rem; color: #64748b; font-weight: 500;">Total Mutasi Transaksi
+                            </div>
+                            <div id="statTotalMutations"
+                                style="font-size: 1.4rem; font-weight: 700; color: var(--color-text);">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-bar"
+                    style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                    <div class="search-box glass"
+                        style="flex: 1; display: flex; gap: 10px; align-items: center; padding: 6px 14px; border-radius: 10px; background: rgba(255,255,255,0.7); min-width: 260px;">
+                        <i class="fas fa-search" style="color: #64748b;"></i>
+                        <input type="search" id="consumableSearchInput" class="form-control"
+                            style="border: none; background: transparent; padding: 4px;"
+                            placeholder="Cari nama barang atau lokasi...">
+                        <select id="consumableCategoryFilter" class="form-control"
+                            style="width: auto; padding: 4px 8px; font-size: 0.85rem;">
+                            <option value="all">Semua Kategori</option>
+                            <option value="ATK">ATK / Alat Tulis</option>
+                            <option value="Kebersihan">Kebersihan</option>
+                            <option value="Kelistrikan">Kelistrikan</option>
+                            <option value="Olahraga">Olahraga</option>
+                            <option value="Lainnya">Lainnya</option>
+                        </select>
+                    </div>
+
+                    <!-- View Mode Toggle Switcher -->
+                    <div
+                        style="display: flex; background: rgba(0,0,0,0.06); padding: 4px; border-radius: 10px; gap: 3px; border: 1px solid rgba(0,0,0,0.08);">
+                        <button id="consumableTableViewBtn" class="btn btn-sm btn-light active"
+                            title="Tampilan Tabel Modern"
+                            style="padding: 5px 12px; font-size: 0.82rem; font-weight: 600; border-radius: 7px;">
+                            <i class="fas fa-table" style="color: var(--color-primary);"></i> Tabel
+                        </button>
+                        <button id="consumableCardViewBtn" class="btn btn-sm btn-light" title="Tampilan Kartu Grid"
+                            style="padding: 5px 12px; font-size: 0.82rem; font-weight: 600; border-radius: 7px;">
+                            <i class="fas fa-th-large"></i> Kartu
+                        </button>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <!-- Public Action: Multi-Item Out Transaction -->
+                        <button id="openPublicMultiOutBtn" class="btn btn-primary">
+                            <i class="fas fa-hand-holding"></i> Form Pengambilan (Multi-Barang)
+                        </button>
+                        <!-- Admin Only Actions (+ Tambah Barang Baru & Restock) -->
+                        <div id="adminConsumableActions" class="admin-only hidden" style="display: flex; gap: 8px;">
+                            <button id="addConsumableItemBtn" class="btn btn-success">
+                                <i class="fas fa-plus"></i> Tambah Barang Baru
+                            </button>
+                            <button id="adminRestockBtn" class="btn btn-secondary">
+                                <i class="fas fa-boxes"></i> Restock (Barang Masuk)
+                            </button>
+                        </div>
+                        <button id="viewConsumableHistoryBtn" class="btn btn-secondary">
+                            <i class="fas fa-history"></i> Riwayat Mutasi
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Active Filter Indicator Banner -->
+                <div id="activeConsumableFilterBanner" class="hidden"
+                    style="display: flex; align-items: center; justify-content: space-between; background: rgba(225,29,72,0.08); border: 1px solid rgba(225,29,72,0.25); color: #be123c; padding: 8px 16px; border-radius: 8px; margin-bottom: 1rem; font-size: 0.85rem; font-weight: 600;">
+                    <span><i class="fas fa-filter"></i> Menampilkan Barang Stok Kritis / Warning Saja</span>
+                    <button id="clearConsumableFilterBtn" class="btn btn-sm btn-secondary"
+                        style="padding: 2px 10px; font-size: 0.75rem;"><i class="fas fa-times"></i> Reset
+                        Filter</button>
+                </div>
+
+                <!-- View 1: Modern Inventory Datatable Container (Default) -->
+                <div id="consumablesTableContainer" class="glass"
+                    style="overflow-x: auto; border-radius: 12px; padding: 12px; background: rgba(255,255,255,0.85); box-shadow: 0 4px 15px rgba(0,0,0,0.03); margin-bottom: 1.5rem;">
+                    <table class="inventory-table"
+                        style="width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: left;">
+                        <thead>
+                            <tr
+                                style="border-bottom: 2px solid #cbd5e1; color: #334155; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; background: rgba(241,245,249,0.7);">
+                                <th style="padding: 12px 16px; border-radius: 8px 0 0 8px;">Nama Barang</th>
+                                <th style="padding: 12px 16px;">Kategori</th>
+                                <th style="padding: 12px 16px;">Jumlah Stok</th>
+                                <th style="padding: 12px 16px;">Satuan</th>
+                                <th style="padding: 12px 16px;">Lokasi Penyimpanan</th>
+                                <th style="padding: 12px 16px; text-align: right; border-radius: 0 8px 8px 0;">Aksi
+                                    Cepat</th>
+                            </tr>
+                        </thead>
+                        <tbody id="consumablesTableBody">
+                            <!-- Populated dynamically by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- View 2: Cards Grid Container (Optional) -->
+                <div id="consumablesCardContainer" class="hidden">
+                    <div id="consumablesGrid" class="events-grid">
+                        <!-- Cards populated dynamically -->
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="glass-footer">
+            <p id="cms-footer-text" class="cms-editable" data-cms-key="footerText">&copy; 2026 SMAN 2 Ciamis. All rights
+                reserved.</p>
+        </footer>
+
+        <!-- Event Detail Slide-over Panel -->
+        <div id="detailPanel" class="slide-panel">
+            <div class="panel-header">
+                <h2>Detail Acara</h2>
+                <button class="close-btn" id="closeDetailBtn"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="panel-content">
+                <div class="detail-card glass">
+                    <h3 id="detailTitle" class="detail-title"></h3>
+                    <p class="detail-meta"><i class="far fa-calendar-alt"></i> <span id="detailDate"></span></p>
+                    <p class="detail-meta"><i class="far fa-clock"></i> Pukul: <span id="detailTime"></span></p>
+                    <p class="detail-meta"><i class="fas fa-map-marker-alt"></i> <span id="detailFacility"></span></p>
+                    <p class="detail-meta"><i class="fas fa-envelope"></i> Nomor Surat: <span
+                            id="detailNomorSurat">-</span></p>
+
+                    <div class="detail-section">
+                        <h4>Penyelenggara</h4>
+                        <p id="detailOrganizer"></p>
+                        <p><i class="fas fa-phone-alt"></i> <span id="detailCP"></span></p>
+                    </div>
+
+                    <div class="detail-grid">
+                        <div class="stat-box">
+                            <i class="fas fa-users"></i>
+                            <div class="stat-value" id="detailParticipants"></div>
+                            <div class="stat-label">Peserta</div>
+                        </div>
+                        <div class="stat-box">
+                            <i class="fas fa-user-tie"></i>
+                            <div class="stat-value" id="detailCommittee"></div>
+                            <div class="stat-label">Panitia</div>
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <h4>Kebutuhan Teknis</h4>
+                        <ul id="detailTechnical" class="technical-list"></ul>
+                    </div>
+                </div>
+
+                <!-- Foto Konfigurasi / Formasi -->
+                <div id="detailFormationContainer" class="map-container glass hidden" style="margin-bottom: 1.5rem;">
+                    <h4>Konfigurasi / Formasi Lapangan</h4>
+                    <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 0.5rem;">Gambaran tata
+                        letak sarana & prasarana untuk petugas di lapangan:</p>
+                    <div
+                        style="text-align: center; background: rgba(0,0,0,0.03); border-radius: 8px; padding: 8px; border: 1px solid var(--glass-border);">
+                        <img id="detailFormationImg" src="" alt="Konfigurasi Formasi"
+                            style="max-width: 100%; max-height: 450px; object-fit: contain; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                    </div>
+                </div>
+
+                <div class="map-container glass">
+                    <h4>Visualisasi Lokasi</h4>
+                    <div class="map-wrapper" id="mapWrapper">
+                        <img src="denah.png" alt="Denah Sekolah" id="schoolMap"
+                            onerror="this.onerror=null; this.src='https://placehold.co/800x600/eeeeee/999999?text=Denah+Belum+Diunggah';">
+                        <!-- Dynamic Highlights will be placed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="panelOverlay" class="panel-overlay"></div>
+
+        <!-- Add/Edit Event Modal -->
+        <div id="eventModal" class="modal hidden">
+            <div class="modal-content glass">
+                <div class="modal-header">
+                    <h3 id="eventModalTitle">Tambah Acara</h3>
+                    <button class="close-btn" id="closeEventModal"><i class="fas fa-times"></i></button>
+                </div>
+                <form id="eventForm">
+                    <input type="hidden" id="eventId">
+
+                    <div class="form-group">
+                        <label>Nama Acara</label>
+                        <input type="text" id="eventTitle" required class="form-control"
+                            placeholder="Contoh: Rapat Komite / Ekskul Voli">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Nomor Surat</label>
+                        <input type="text" id="eventNomorSurat" class="form-control"
+                            placeholder="Contoh: 421.3/012/SMAN2/2026 (Opsional)">
+                    </div>
+
+                    <div class="form-group">
+                        <label
+                            style="cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: normal;">
+                            <input type="checkbox" id="multiDayCheck"> Acara berlangsung lebih dari satu hari?
+                        </label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label id="dateLabelMain">Tanggal</label>
+                            <input type="date" id="eventDate" required class="form-control">
+                        </div>
+                        <div class="form-group hidden" id="endDateGroup">
+                            <label>Sampai Tanggal</label>
+                            <input type="date" id="eventEndDate" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Waktu / Jam (Opsional)</label>
+                            <input type="text" id="eventTime" class="form-control"
+                                placeholder="Contoh: 08:00 atau Selasa 15.00, Rabu 12.15">
+                        </div>
+                        <div class="form-group">
+                            <label>Fasilitas (Bisa pilih lebih dari satu)</label>
+                            <select id="eventFacility" required class="form-control" multiple>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Penyelenggara</label>
+                            <input type="text" id="eventOrganizer" required class="form-control"
+                                placeholder="Contoh: OSIS / Guru / Luar">
+                        </div>
+                        <div class="form-group">
+                            <label>Contact Person</label>
+                            <input type="text" id="eventCP" class="form-control"
+                                placeholder="Contoh: Bpk. Adiw (0812345...)">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Jumlah Peserta</label>
+                            <input type="text" id="eventParticipants" class="form-control"
+                                placeholder="Contoh: 300 atau -">
+                        </div>
+                        <div class="form-group">
+                            <label>Jumlah Panitia</label>
+                            <input type="text" id="eventCommittee" class="form-control" placeholder="Contoh: 20 atau -">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Kebutuhan Teknis (Format: Nama Barang - Jumlah, pisahkan dengan koma)</label>
+                        <textarea id="eventTechnical" rows="3" class="form-control"
+                            placeholder="Contoh: Kursi - 300, Sound System - 1, Proyektor - 2"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Foto Konfigurasi / Formasi Lapangan (Opsional - Gambaran penataan sarana &
+                            prasarana)</label>
+                        <input type="file" id="eventFormationInput" accept="image/*" class="form-control">
+                        <input type="hidden" id="eventFormationData">
+                        <div id="formationPreviewContainer" class="hidden"
+                            style="margin-top: 10px; text-align: center; padding: 8px; background: rgba(255,255,255,0.6); border-radius: 8px; border: 1px dashed var(--glass-border);">
+                            <img id="formationPreviewImg" src=""
+                                style="max-height: 180px; max-width: 100%; object-fit: contain; border-radius: 6px; display: block; margin: 0 auto 8px auto;">
+                            <button type="button" id="removeFormationBtn" class="btn btn-secondary"
+                                style="padding: 4px 12px; font-size: 0.8rem;"><i class="fas fa-trash"></i> Hapus
+                                Foto</button>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancelEventBtn">Batal</button>
+                        <button type="submit" class="btn btn-primary" id="saveEventBtn">Simpan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Manage Facilities Modal -->
+        <div id="facilitiesModal" class="modal hidden">
+            <div class="modal-content glass">
+                <div class="modal-header">
+                    <h3>Kelola Fasilitas</h3>
+                    <button class="close-btn" id="closeFacilitiesModal"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="facilities-manager">
+                    <div class="add-facility-form">
+                        <input type="text" id="newFacilityName" placeholder="Nama fasilitas baru..."
+                            class="form-control">
+                        <button id="addFacilityBtn" class="btn btn-primary">Tambah</button>
+                    </div>
+                    <div class="import-facility-form"
+                        style="display: flex; gap: 10px; margin-top: 15px; margin-bottom: 15px; align-items: center;">
+                        <input type="file" id="csvFacilityInput" accept=".csv" class="form-control"
+                            style="padding: 5px; flex: 1;">
+                        <button id="importFacilityBtn" class="btn btn-secondary"><i class="fas fa-file-csv"></i>
+                            Import</button>
+                    </div>
+                    <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">*Format CSV: 1 kolom berisi daftar
+                        nama fasilitas. Pisahkan dengan koma atau baris baru.</p>
+                    <ul id="facilitiesList" class="admin-list">
+                        <!-- Populated dynamically -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Report Modal (Rekapitulasi & Cetak) -->
+        <div id="reportModal" class="modal hidden">
+            <div class="modal-content glass" style="max-width: 900px; width: 95%;">
+                <div class="modal-header">
+                    <h3>Rekapitulasi & Cetak Laporan</h3>
+                    <button class="close-btn" id="closeReportModal" onclick="document.getElementById('reportModal').classList.add('hidden')"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <!-- Filter Controls -->
+                    <div class="report-filters" style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; align-items: center; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
+                        <div>
+                            <label style="display:block; font-size: 0.85rem; margin-bottom: 5px;">Jenis Laporan</label>
+                            <select id="reportTypeSelect" class="form-control" onchange="renderReportTable(this.value)">
+                                <option value="pemilahan_sampah">Pemilahan Sampah</option>
+                                <option value="penghijauan">Penghijauan</option>
+                                <option value="hemat_energi">Hemat Energi</option>
+                                <option value="konservasi_air">Konservasi Air</option>
+                                <option value="lainnya">Lainnya</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block; font-size: 0.85rem; margin-bottom: 5px;">Dari Tanggal</label>
+                            <input type="date" id="reportStartDate" class="form-control" onchange="renderReportTable(document.getElementById('reportTypeSelect').value)">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size: 0.85rem; margin-bottom: 5px;">Sampai Tanggal</label>
+                            <input type="date" id="reportEndDate" class="form-control" onchange="renderReportTable(document.getElementById('reportTypeSelect').value)">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size: 0.85rem; margin-bottom: 5px;">Kategori</label>
+                            <select id="reportCategorySelect" class="form-control" onchange="renderReportTable(document.getElementById('reportTypeSelect').value)">
+                                <option value="all">Semua Kategori</option>
+                                <option value="organik">Hanya Organik</option>
+                                <option value="anorganik">Hanya Anorganik</option>
+                            </select>
+                        </div>
+                        <div style="flex-grow: 1; display: flex; justify-content: flex-end; align-items: flex-end; gap: 10px;">
+                            <button class="btn btn-primary" onclick="window.printReport()"><i class="fas fa-print"></i> Cetak PDF</button>
+                            <button class="btn btn-secondary" onclick="window.exportReportToExcel()"><i class="fas fa-file-excel"></i> Unduh Excel</button>
+                            <button class="btn btn-outline" onclick="document.getElementById('editKopContainer').classList.toggle('hidden')"><i class="fas fa-cog"></i> Setup Kop/TTD</button>
+                        </div>
+                    </div>
+
+                    <!-- Setup Kop Surat & TTD (Hidden by default) -->
+                    <div id="editKopContainer" class="hidden" style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <h4 style="margin-top: 0; margin-bottom: 15px; font-size: 1.1rem;">Pengaturan Kop Surat & Penandatangan</h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                            <div>
+                                <label style="font-size: 0.8rem;">Nama Pemprov / Yayasan</label>
+                                <input type="text" id="inputGovName" class="form-control" value="PEMERINTAH PROVINSI JAWA BARAT">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem;">Nama Dinas / Cabang</label>
+                                <input type="text" id="inputDeptName" class="form-control" value="DINAS PENDIDIKAN">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem;">Nama Sekolah</label>
+                                <input type="text" id="inputSchoolName" class="form-control" value="SMAN 2 CIAMIS">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem;">Sub-Title (Sistem)</label>
+                                <input type="text" id="inputSubTitle" class="form-control" value="">
+                            </div>
+                            <div style="grid-column: 1 / -1;">
+                                <label style="font-size: 0.8rem;">Alamat Lengkap</label>
+                                <input type="text" id="inputAddress" class="form-control" value="Jln. K.H. Ahmad Dahlan No.2 Ciamis 46211">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem;">Kontak / Website / Email</label>
+                                <input type="text" id="inputContact" class="form-control" value="Telp: (0265) 771631 | Web: sman2ciamis.sch.id">
+                            </div>
+
+                            <!-- Titi Mangsa (Tanggal & Tempat) -->
+                            <div style="grid-column: 1 / -1; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                                <h5 style="margin:0 0 10px 0;">Titi Mangsa Laporan</h5>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem;">Tempat Terbit</label>
+                                <input type="text" id="reportPlaceInput" class="form-control" value="Ciamis" oninput="updateTitiMangsaUI()">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem;">Tanggal Terbit</label>
+                                <input type="date" id="reportDateInput" class="form-control" onchange="updateTitiMangsaUI()">
+                            </div>
+
+                            <!-- TTD 1 (Kepala Sekolah) -->
+                            <div style="grid-column: 1 / -1; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                                <h5 style="margin:0 0 10px 0;">Penandatangan 1 (Kiri)</h5>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem;">Jabatan (Cth: Kepala Sekolah)</label>
+                                <input type="text" id="inputPrincipalTitle" class="form-control" value="Kepala SMAN 2 Ciamis">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem;">Nama Terang</label>
+                                <input type="text" id="inputPrincipalName" class="form-control" value="Drs. H. Nurdin, M.Pd.">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem;">NIP / NIK</label>
+                                <input type="text" id="inputPrincipalNip" class="form-control" value="-">
+                            </div>
+
+                            <!-- TTD 2 (Ketua Adiwiyata) -->
+                            <div style="grid-column: 1 / -1; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                                <h5 style="margin:0 0 10px 0;">Penandatangan 2 (Kanan)</h5>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem;">Jabatan (Cth: Ketua Adiwiyata)</label>
+                                <input type="text" id="inputStaffTitle" class="form-control" value="Ketua Adiwiyata">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem;">Nama Terang</label>
+                                <input type="text" id="inputStaffName" class="form-control" value="H. Endang Rahmat, S.Pd., M.Pd.">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem;">NIP / NIK</label>
+                                <input type="text" id="inputStaffNip" class="form-control" value="-">
+                            </div>
+                        </div>
+                        <div style="margin-top: 15px; text-align: right;">
+                            <button class="btn btn-primary" onclick="saveKopSuratConfig()">Simpan & Terapkan Pengaturan</button>
+                        </div>
+                    </div>
+
+                    <!-- Print Area / Layout -->
+                    <div id="printArea" class="print-area" style="background: white; color: black; padding: 20px; border: 1px solid #e2e8f0; border-radius: 4px;">
+                        <!-- KOP SURAT -->
+                        <div style="display: flex; align-items: center; border-bottom: 3px solid black; padding-bottom: 10px; margin-bottom: 20px;">
+                            <img src="logo.png" alt="Logo" style="width: 80px; height: 80px; object-fit: contain; margin-right: 20px;" onerror="this.style.display='none'">
+                            <div style="flex-grow: 1; text-align: center;">
+                                <h3 id="kopGovName" style="margin: 0; font-size: 16px; font-weight: normal; text-transform: uppercase;">PEMERINTAH PROVINSI JAWA BARAT</h3>
+                                <h2 id="kopDeptName" style="margin: 0; font-size: 18px; font-weight: bold; text-transform: uppercase;">DINAS PENDIDIKAN</h2>
+                                <h1 id="kopSchoolName" style="margin: 5px 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">SMAN 2 CIAMIS</h1>
+                                <p id="kopSubTitle" style="margin: 0; font-size: 12px; font-weight: bold;"></p>
+                                <p id="kopAddress" style="margin: 0; font-size: 12px;">Jln. K.H. Ahmad Dahlan No.2 Ciamis 46211</p>
+                                <p id="kopContact" style="margin: 0; font-size: 12px;">Telp: (0265) 771631 | Web: sman2ciamis.sch.id</p>
+                            </div>
+                        </div>
+
+                        <!-- REPORT CONTENT -->
+                        <div style="text-align: center; margin-bottom: 20px;">
+                            <h3 id="reportTitleHeading" style="margin: 0 0 5px 0; font-size: 18px; font-weight: bold; text-decoration: underline; text-transform: uppercase;">Laporan Rekapitulasi Pemilahan Sampah</h3>
+                            <p id="reportSubHeading" style="margin: 0; font-size: 14px;">Periode: -</p>
+                        </div>
+
+                        <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 30px;">
+                            <thead id="reportTableHeader" style="background-color: #f1f5f9;">
+                                <!-- Injected by JS -->
+                            </thead>
+                            <tbody id="reportTableBody">
+                                <!-- Injected by JS -->
+                            </tbody>
+                        </table>
+
+                        <!-- TANDA TANGAN (TITIMANGSA) -->
+                        <div style="display: flex; justify-content: space-between; margin-top: 40px; font-size: 14px;">
+                            <div style="text-align: center; width: 40%;">
+                                <p style="margin: 0;">Mengetahui,</p>
+                                <p id="principalTitleText" style="margin: 0;">Kepala SMAN 2 Ciamis</p>
+                                <br><br><br><br>
+                                <p id="principalNameText" style="margin: 0; font-weight: bold; text-decoration: underline;">Nama Kepala Sekolah</p>
+                                <p style="margin: 0;">NIP. <span id="principalNipText">-</span></p>
+                            </div>
+                            <div style="text-align: center; width: 40%;">
+                                <p style="margin: 0;"><span id="reportSignPlace">Ciamis</span>, <span id="reportSignDate">...</span></p>
+                                <p id="staffTitleText" style="margin: 0;">Ketua Adiwiyata</p>
+                                <br><br><br><br>
+                                <p id="staffNameText" style="margin: 0; font-weight: bold; text-decoration: underline;">Nama Ketua Adiwiyata</p>
+                                <p style="margin: 0;">NIP. <span id="staffNipText">-</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Login Modal (Admin / Operator) -->
+        <div id="loginModal" class="modal hidden">
+            <div class="modal-content glass login-box">
+                <div class="modal-header">
+                    <h3>Otorisasi Akses (Admin / Operator)</h3>
+                    <button class="close-btn" id="closeLoginModal" type="button"><i class="fas fa-times"></i></button>
+                </div>
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label>Password Akses</label>
+                        <input type="password" id="adminPassword" name="admin_password" autocomplete="current-password"
+                            class="form-control" placeholder="Masukkan password otorisasi" required>
+                    </div>
+                    <button type="submit" id="loginSubmitBtn" class="btn btn-primary w-100">Masuk</button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Map Viewer Modal -->
+    <div id="mapModal" class="modal hidden">
+        <div class="modal-content map-modal-content">
+            <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="margin:0; font-size:1.1rem;"><i class="fas fa-map-marked-alt" style="color:var(--color-primary);"></i> Visualisasi Pemetaan Denah</h3>
+                <button class="close-btn" id="closeMapModal" type="button" title="Tutup"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="map-wrapper" id="mapWrapper">
+                <img src="denah.png" alt="Denah Sekolah">
+                <!-- Sorotan (highlights) akan disuntikkan secara dinamis di sini -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Vehicle Modal -->
+    <div id="vehicleModal" class="modal hidden">
+        <div class="modal-content glass" style="max-width: 650px;">
+            <div class="modal-header">
+                <h3 id="vehicleModalTitle">Tambah Kendaraan Operasional</h3>
+                <button class="close-btn" id="closeVehicleModal" type="button"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="vehicleForm">
+                <input type="hidden" id="vehicleId">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nama Kendaraan</label>
+                        <input type="text" id="vehicleName" required class="form-control"
+                            placeholder="Contoh: Avanza Dinas / Bus Sekolah / Motor Operasional">
+                    </div>
+                    <div class="form-group">
+                        <label>Plat Nomor</label>
+                        <input type="text" id="vehiclePlate" required class="form-control"
+                            placeholder="Contoh: Z 1234 XX">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Jenis Kendaraan</label>
+                        <select id="vehicleType" required class="form-control">
+                            <option value="Mobil">Mobil</option>
+                            <option value="Motor">Motor</option>
+                            <option value="Bus">Bus</option>
+                            <option value="Lainnya">Lainnya</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Status Kondisi</label>
+                        <select id="vehicleStatus" required class="form-control">
+                            <option value="Siap Operasional">🟢 Siap Operasional</option>
+                            <option value="Perlu Perbaikan">🟡 Perlu Perbaikan</option>
+                            <option value="Dalam Servis">🔴 Dalam Servis / Bengkel</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Kilometer saat ini (KM)</label>
+                        <input type="number" id="vehicleKm" class="form-control" placeholder="Contoh: 45000">
+                    </div>
+                    <div class="form-group">
+                        <label>KM Target Ganti Oli Berikutnya</label>
+                        <input type="number" id="vehicleKmNextOil" class="form-control" placeholder="Contoh: 50000">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Tgl Terakhir Ganti Oli</label>
+                        <input type="date" id="vehicleLastOilDate" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>Tgl Target Ganti Oli Berikutnya</label>
+                        <input type="date" id="vehicleNextOilDate" class="form-control">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Jatuh Tempo Pajak STNK (Tahunan)</label>
+                        <input type="date" id="vehicleTaxDate" required class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>Jatuh Tempo Plat (5 Tahunan)</label>
+                        <input type="date" id="vehiclePlateDate" class="form-control">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Catatan Perawatan / Kelengkapan (Opsional)</label>
+                    <textarea id="vehicleNotes" rows="2" class="form-control"
+                        placeholder="Catatan kondisi kendaraan, kelengkapan surat, dll..."></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelVehicleBtn">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="saveVehicleBtn">Simpan Kendaraan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Complaint Modal (Public Warga Sekolah) -->
+    <div id="complaintModal" class="modal hidden">
+        <div class="modal-content glass" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="complaintModalTitle">📝 Formulir Lapor Detail</h3>
+                <button class="close-btn" id="closeComplaintModal" type="button"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="complaintForm">
+                <input type="hidden" id="complaintFormId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nama Pelapor</label>
+                        <input type="text" id="complaintReporter" required class="form-control"
+                            placeholder="Contoh: Budi Santoso / Inisial">
+                    </div>
+                    <div class="form-group">
+                        <label>Status / Peran</label>
+                        <select id="complaintRole" required class="form-control">
+                            <option value="TIM Adiwiyata">TIM Adiwiyata</option>
+                            <option value="Kader Adiwiyata">Kader Adiwiyata</option>
+                            <option value="Pendidik">Pendidik</option>
+                            <option value="Tenaga Kependidikan">Tenaga Kependidikan</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Tanggal Laporan / Pemantauan</label>
+                        <input type="date" id="complaintDate" required class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>Lokasi Fasilitas / Ruangan</label>
+                        <select id="complaintLocation" required class="form-control">
+                            <option value="">-- Pilih Lokasi Fasilitas / Ruangan --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="width: 100%;">
+                        <label>Kategori Masalah Lingkungan</label>
+                        <select id="complaintCategory" required class="form-control">
+                            <option value="Pemilahan Sampah">♻️ Pemilahan Sampah</option>
+                            <option value="Penghijauan">🌱 Penghijauan</option>
+                            <option value="Hemat Energi">⚡ Hemat Energi</option>
+                            <option value="Konservasi Air">💧 Konservasi Air</option>
+                            <option value="Lainnya">📌 Lainnya</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Rincian Deskripsi Laporan</label>
+                    <textarea id="complaintDesc" rows="3" required class="form-control"
+                        placeholder="Jelaskan secara detail jenis temuan atau laporan Anda..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-camera"></i> Foto / Bukti Dokumentasi (Opsional)</label>
+                    <input type="file" id="complaintImageInput" accept="image/*" class="form-control">
+                    <input type="hidden" id="complaintImageUrl">
+                    <div id="complaintImagePreview" class="hidden"
+                        style="margin-top: 8px; position: relative; max-width: 220px;">
+                        <img id="complaintPreviewImg" src="" alt="Preview Foto Dokumentasi"
+                            style="width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; max-height: 160px; object-fit: cover;">
+                        <button type="button" id="removeComplaintImgBtn"
+                            style="position: absolute; top: -6px; right: -6px; background: #e11d48; color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"
+                            title="Hapus Foto">&times;</button>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelComplaintBtn">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="saveComplaintBtn"><i
+                            class="fas fa-paper-plane"></i> Kirim Laporan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Response Modal for Complaints -->
+    <div id="complaintAdminModal" class="modal hidden">
+        <div class="modal-content glass" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>🛠️ Tindak Lanjut Pengaduan (Admin)</h3>
+                <button class="close-btn" id="closeComplaintAdminModal" type="button"><i
+                        class="fas fa-times"></i></button>
+            </div>
+            <form id="complaintAdminForm">
+                <input type="hidden" id="complaintAdminId">
+                <div class="form-group">
+                    <label>Status Penanganan</label>
+                    <select id="complaintAdminStatus" class="form-control">
+                        <option value="Pending">⏳ Pending (Diterima)</option>
+                        <option value="Dalam Perbaikan">🛠️ Dalam Perbaikan</option>
+                        <option value="Selesai">✅ Selesai Dikerjakan</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Tanggapan / Catatan Admin Sarpras</label>
+                    <textarea id="complaintAdminResponse" rows="3" class="form-control"
+                        placeholder="Tuliskan catatan tindak lanjut, progres, atau solusi perbaikan..."></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelComplaintAdminBtn">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="saveComplaintAdminBtn">Simpan Status</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+
+    <!-- Modal Form Pengambilan Multi-Barang (Public Warga Sekolah) -->
+    <div id="publicMultiOutModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 650px;">
+            <span class="close-modal" id="closePublicMultiOutModal">&times;</span>
+            <h3 style="margin-top: 0; color: var(--color-primary);"><i class="fas fa-dolly"></i> Form Pengambilan Barang
+                (Multi-Barang)</h3>
+            <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1.2rem;">
+                Pilih satu atau beberapa barang sekaligus yang diambil/digunakan, tentukan jumlahnya, lalu masukkan
+                password verifikasi warga sekolah.
+            </p>
+
+            <form id="publicMultiOutForm">
+                <!-- Dynamic Item Rows Container -->
+                <div class="form-group">
+                    <label style="font-weight: 600;">Daftar Barang & Jumlah Pengambilan</label>
+                    <div id="consumableItemRowsContainer"
+                        style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;">
+                        <!-- Item row dynamically appended -->
+                    </div>
+                    <button type="button" id="addConsumableRowBtn" class="btn btn-secondary btn-sm"
+                        style="margin-top: 4px;">
+                        <i class="fas fa-plus-circle"></i> + Tambah Barang Lain
+                    </button>
+                </div>
+
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="form-group">
+                        <label>Tanggal Pengambilan</label>
+                        <input type="date" id="multiOutDate" required class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>Nama Pengambil / Penerima</label>
+                        <input type="text" id="multiOutActor" required class="form-control"
+                            placeholder="Contoh: Pak Anton / Bu Rina / OSIS">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Keperluan / Peruntukan</label>
+                    <input type="text" id="multiOutNotes" required class="form-control"
+                        placeholder="Contoh: Kegiatan Ujian Sekolah / Kebersihan Kelas XII">
+                </div>
+
+                <div class="form-group"
+                    style="background: rgba(37,99,235,0.05); padding: 12px; border-radius: 8px; border: 1px solid rgba(37,99,235,0.15);">
+                    <label style="color: var(--color-primary); font-weight: 600;"><i class="fas fa-lock"></i> Password
+                        Verifikasi Warga Sekolah</label>
+                    <input type="password" id="multiOutPassword" required class="form-control"
+                        placeholder="Masukkan password verifikasi">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelPublicMultiOutBtn">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="savePublicMultiOutBtn"><i
+                            class="fas fa-paper-plane"></i> Simpan Pengambilan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Admin Tambah/Edit Barang Habis Pakai -->
+    <div id="adminConsumableModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal" id="closeAdminConsumableModal">&times;</span>
+            <h3 id="adminConsumableModalTitle" style="margin-top: 0; color: var(--color-primary);">Tambah Barang Habis
+                Pakai</h3>
+            <form id="adminConsumableForm">
+                <input type="hidden" id="adminConsumableId">
+                <div class="form-group">
+                    <label>Nama Barang</label>
+                    <input type="text" id="adminConsumableName" required class="form-control"
+                        placeholder="Contoh: Kertas HVS A4 80gr / Spidol Boardmarker">
+                </div>
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="form-group">
+                        <label>Kategori</label>
+                        <select id="adminConsumableCategory" class="form-control">
+                            <option value="ATK">ATK / Alat Tulis</option>
+                            <option value="Kebersihan">Kebersihan</option>
+                            <option value="Kelistrikan">Kelistrikan</option>
+                            <option value="Olahraga">Olahraga</option>
+                            <option value="Lainnya">Lainnya</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Satuan Unit</label>
+                        <input type="text" id="adminConsumableUnit" required class="form-control"
+                            placeholder="Rim / Pcs / Box / Botol / Galon / Roll">
+                    </div>
+                </div>
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="form-group">
+                        <label>Stok Saat Ini</label>
+                        <input type="number" id="adminConsumableStock" min="0" required class="form-control"
+                            placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Stok Minimum (Batas Warning)</label>
+                        <input type="number" id="adminConsumableMinStock" min="0" required class="form-control"
+                            placeholder="Contoh: 5">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Lokasi Penyimpanan</label>
+                    <input type="text" id="adminConsumableLocation" class="form-control"
+                        placeholder="Contoh: Gudang Sarpras Rak A1 / Lemari ATK">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelAdminConsumableBtn">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="saveAdminConsumableBtn">Simpan Barang</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Admin Restock (Barang Masuk) -->
+    <div id="adminRestockModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal" id="closeAdminRestockModal">&times;</span>
+            <h3 style="margin-top: 0; color: var(--color-primary);"><i class="fas fa-boxes"></i> Restock Barang Masuk
+                (Admin)</h3>
+            <form id="adminRestockForm">
+                <div class="form-group">
+                    <label>Pilih Barang yang Dibarukan / Restock</label>
+                    <select id="restockItemId" required class="form-control">
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="form-group">
+                        <label>Jumlah Masuk (+Qty)</label>
+                        <input type="number" id="restockQuantity" min="1" required class="form-control"
+                            placeholder="Jumlah barang">
+                    </div>
+                    <div class="form-group">
+                        <label>Tanggal Masuk</label>
+                        <input type="date" id="restockDate" required class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Sumber / Supplier / Toko</label>
+                    <input type="text" id="restockSupplier" class="form-control"
+                        placeholder="Contoh: Toko Buku Ciamis / Pengadaan Sarpras APBD">
+                </div>
+                <div class="form-group">
+                    <label>Catatan / Keterangan</label>
+                    <input type="text" id="restockNotes" class="form-control" placeholder="Catatan opsional...">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelAdminRestockBtn">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="saveAdminRestockBtn"><i class="fas fa-plus"></i>
+                        Tambahkan Stok</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Riwayat Mutasi Transaksi -->
+    <div id="consumableHistoryModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 800px;">
+            <span class="close-modal" id="closeConsumableHistoryModal">&times;</span>
+            <h3 style="margin-top: 0; color: var(--color-primary);"><i class="fas fa-history"></i> Riwayat Mutasi Barang
+                Habis Pakai</h3>
+            <div style="overflow-x: auto; max-height: 450px; margin-top: 1rem;">
+                <table class="table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="background: rgba(37,99,235,0.08); text-align: left;">
+                            <th style="padding: 8px 12px;">Tanggal</th>
+                            <th style="padding: 8px 12px;">Tipe</th>
+                            <th style="padding: 8px 12px;">Nama Barang</th>
+                            <th style="padding: 8px 12px;">Jumlah</th>
+                            <th style="padding: 8px 12px;">Penerima / Sumber</th>
+                            <th style="padding: 8px 12px;">Keperluan / Catatan</th>
+                        </tr>
+                    </thead>
+                    <tbody id="consumableHistoryTableBody">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Editor Modal (Khusus Admin) -->
+    <div id="mapEditorModal" class="modal hidden">
+        <div class="modal-content map-modal-content">
+            <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="margin: 0; font-size: 1.1rem; color: var(--color-primary);"><i class="fas fa-map-marked-alt"></i> Editor Pemetaan Fasilitas</h3>
+                <button class="close-btn" id="closeMapEditorModal" type="button" title="Tutup"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap; margin-top: 1rem;">
+                <select id="editorFacilitySelect" class="form-control" style="flex: 1; min-width: 200px;">
+                    <option value="">-- Pilih Fasilitas untuk Dipetakan --</option>
+                </select>
+                <button id="saveMapCoordsBtn" class="btn btn-primary">💾 Simpan Koordinat</button>
+                <button id="deleteMapCoordsBtn" class="btn btn-danger hidden" title="Hapus Kotak Terpilih"><i
+                        class="fas fa-trash"></i> Hapus Kotak</button>
+                <button id="cleanOrphanCoordsBtn" class="btn btn-secondary"
+                    title="Bersihkan semua kotak koordinat lama yang fasilitasnya sudah tidak ada"><i
+                        class="fas fa-broom"></i> Bersihkan Kotak Lama</button>
+            </div>
+
+            <!-- Quick Add Facility Inline Form -->
+            <div
+                style="display: flex; gap: 8px; margin-bottom: 1rem; align-items: center; background: rgba(255,255,255,0.7); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border);">
+                <span style="font-size: 0.85rem; font-weight: 600; color: var(--color-text); white-space: nowrap;"><i
+                        class="fas fa-plus-circle"></i> Fasilitas Belum Ada?</span>
+                <input type="text" id="quickAddFacilityInput" class="form-control"
+                    placeholder="Ketik nama fasilitas baru..." style="flex: 1; padding: 6px 12px; font-size: 0.85rem;">
+                <button id="quickAddFacilityBtn" class="btn btn-secondary"
+                    style="padding: 6px 12px; font-size: 0.85rem;"><i class="fas fa-plus"></i> Tambah</button>
+            </div>
+
+            <p style="font-size: 0.85rem; color: #666; margin-bottom: 1rem;">
+                <em>Cara Penggunaan: Pilih fasilitas, klik dan tarik (drag) kotak biru untuk menggeser letaknya, dan
+                    tarik ujung kanan bawahnya untuk mengubah ukuran kotak.</em>
+            </p>
+            <div class="map-wrapper" id="mapEditorWrapper" style="border: 2px dashed #ccc; user-select: none;">
+                <img src="denah.png" alt="Denah Sekolah" draggable="false">
+                <div id="editableHighlight" class="editable-highlight" style="display: none;">
+                    <div class="resize-handle"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Script Konfigurasi & Aplikasi GAS -->
+    <script src="gas-config.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
