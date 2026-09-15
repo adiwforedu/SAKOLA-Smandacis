@@ -1215,6 +1215,19 @@ function renderFacilities() {
         if (currentVal) complaintLocationSelect.value = currentVal;
     }
 
+    const quickReportSearchInput = document.getElementById('quickReportSearchInput');
+    if (quickReportSearchInput) {
+        const currentVal = quickReportSearchInput.value;
+        quickReportSearchInput.innerHTML = '<option value="">-- Semua Fasilitas / Ruangan --</option>';
+        sortedFacilities.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f;
+            opt.textContent = f;
+            quickReportSearchInput.appendChild(opt);
+        });
+        if (currentVal) quickReportSearchInput.value = currentVal;
+    }
+
     renderFacilityAdminList();
 }
 
