@@ -251,7 +251,7 @@ body.admin-mode .cms-editable:hover::after {
 /* Sticky Table Header */
 .quick-report-table thead th {
     position: sticky;
-    top: 75px; /* Sesuaikan dengan tinggi header utama */
+    top: 0; /* Sesuaikan dengan tinggi header utama */
     background: #f8fafc;
     z-index: 10;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
@@ -265,6 +265,8 @@ body.admin-mode .cms-editable:hover::after {
 
     /* Fix Safari layout bug and optimize space */
     .quick-report-table-wrapper {
+    overflow-y: auto;
+    max-height: 65vh;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         margin: 0 -1rem;

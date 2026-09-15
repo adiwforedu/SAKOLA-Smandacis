@@ -80,6 +80,7 @@ let events = [...DEFAULT_EVENTS];
 let facilities = [...DEFAULT_FACILITIES];
 let vehicles = [...DEFAULT_VEHICLES];
 let complaints = [...DEFAULT_COMPLAINTS];
+let pemilahanSampah = [];
 let consumables = [...DEFAULT_CONSUMABLES];
 let consumableLogs = [];
 let currentComplaintStatusFilter = "all";
@@ -360,6 +361,24 @@ async function loadFromGAS(isSilent = false) {
             complaints = Array.from(mergedComplaintsMap.values());
             complaints.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
             localStorage.setItem('sardas_complaints', JSON.stringify(complaints));
+
+            // 3.5 Pemilahan Sampah
+            if (Array.isArray(data.pemilahanSampah)) {
+                pemilahanSampah = data.pemilahanSampah.map(r => ({
+                    id: r.id,
+                    type: 'pemilahan_sampah',
+                    tanggal: r.tanggal,
+                    lokasi: r.lokasi,
+                    status_organik: r.status_organik,
+                    status_anorganik: r.status_anorganik,
+                    petugas: r.petugas || '',
+                    catatan: r.catatan || '',
+                    updatedAt: r.updatedAt
+                }));
+                localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
+            } else {
+                pemilahanSampah = JSON.parse(localStorage.getItem('sardas_reports') || '[]');
+            }
 
             // 4. Consumables (Barang Habis Pakai)
             if (Array.isArray(data.consumables) && data.consumables.length > 0) {
@@ -1587,44 +1606,33 @@ function renderComplaintsMap() {
     // Hapus overlay lama
     wrapper.querySelectorAll('.complaint-map-box').forEach(box => box.remove());
 
-    // Grouping status laporan berdasarkan lokasi & kategori organik/anorganik
+    // Grouping status laporan berdasarkan lokasi
     const statusByLocation = {};
-    complaints.forEach(c => {
-        if (!c.location) return;
-        const normLoc = normalizeFacilityName(c.location);
+    
+    // Urutkan pemilahanSampah agar yang paling baru diproses terakhir
+    const sortedReports = [...pemilahanSampah].sort((a, b) => new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0));
+    
+    sortedReports.forEach(r => {
+        if (!r.lokasi) return;
+        const normLoc = normalizeFacilityName(r.lokasi);
         if (!statusByLocation[normLoc]) {
             statusByLocation[normLoc] = { orgState: 'neutral', inorgState: 'neutral', pendingOrg: 0, pendingInorg: 0 };
         }
         
-        const isPending = (c.status || 'Pending') === 'Pending';
-        const cat = (c.category || '').toLowerCase();
+        let locState = statusByLocation[normLoc];
         
-        let affectsOrg = cat.includes('organik') && !cat.includes('anorganik');
-        let affectsInorg = cat.includes('anorganik') && !cat.includes('campur') && !cat.includes('organik & anorganik');
-        
-        if (cat.includes('campur') || cat.includes('organik & anorganik') || cat.includes('penuh') || cat === 'pemilahan sampah' || cat.includes('lainnya')) {
-            affectsOrg = true;
-            affectsInorg = true;
-        } else if (!affectsOrg && !affectsInorg) {
-            affectsOrg = true;
-        }
-
-        if (affectsOrg) {
-            if (isPending) {
-                statusByLocation[normLoc].orgState = 'unsorted';
-                statusByLocation[normLoc].pendingOrg++;
-            } else if (statusByLocation[normLoc].orgState === 'neutral') {
-                statusByLocation[normLoc].orgState = 'sorted';
-            }
+        if (r.status_organik === 'Sudah') {
+            locState.orgState = 'sorted';
+        } else if (r.status_organik === 'Belum') {
+            locState.orgState = 'unsorted';
+            locState.pendingOrg = 1;
         }
         
-        if (affectsInorg) {
-            if (isPending) {
-                statusByLocation[normLoc].inorgState = 'unsorted';
-                statusByLocation[normLoc].pendingInorg++;
-            } else if (statusByLocation[normLoc].inorgState === 'neutral') {
-                statusByLocation[normLoc].inorgState = 'sorted';
-            }
+        if (r.status_anorganik === 'Sudah') {
+            locState.inorgState = 'sorted';
+        } else if (r.status_anorganik === 'Belum') {
+            locState.inorgState = 'unsorted';
+            locState.pendingInorg = 1;
         }
     });
 
@@ -1685,35 +1693,30 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
 
     const allFacs = [...facilities].sort((a, b) => a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' }));
 
+    // Pre-calculate latest status for each facility based on pemilahanSampah
+    const statusMap = {};
+    const sortedPemilahan = [...pemilahanSampah].sort((a, b) => new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0));
+    sortedPemilahan.forEach(r => {
+        if (r.lokasi) {
+            if (!statusMap[r.lokasi]) {
+                statusMap[r.lokasi] = { orgState: 'neutral', inorgState: 'neutral' };
+            }
+            if (r.status_organik === 'Sudah') statusMap[r.lokasi].orgState = 'sorted';
+            else if (r.status_organik === 'Belum') statusMap[r.lokasi].orgState = 'unsorted';
+            
+            if (r.status_anorganik === 'Sudah') statusMap[r.lokasi].inorgState = 'sorted';
+            else if (r.status_anorganik === 'Belum') statusMap[r.lokasi].inorgState = 'unsorted';
+        }
+    });
+
     allFacs.forEach(fac => {
         let orgState = 'neutral';
         let inorgState = 'neutral';
-
-        complaints.forEach(c => {
-            if (c.location === fac) {
-                const isPending = (c.status || 'Pending') === 'Pending';
-                const cat = (c.category || '').toLowerCase();
-                
-                let affectsOrg = cat.includes('organik') && !cat.includes('anorganik');
-                let affectsInorg = cat.includes('anorganik') && !cat.includes('campur') && !cat.includes('organik & anorganik');
-                
-                if (cat.includes('campur') || cat.includes('organik & anorganik') || cat.includes('penuh') || cat === 'pemilahan sampah' || cat.includes('lainnya')) {
-                    affectsOrg = true;
-                    affectsInorg = true;
-                } else if (!affectsOrg && !affectsInorg) {
-                    affectsOrg = true;
-                }
-
-                if (affectsOrg) {
-                    if (isPending) orgState = 'unsorted';
-                    else if (orgState === 'neutral') orgState = 'sorted';
-                }
-                if (affectsInorg) {
-                    if (isPending) inorgState = 'unsorted';
-                    else if (inorgState === 'neutral') inorgState = 'sorted';
-                }
-            }
-        });
+        
+        if (statusMap[fac]) {
+            orgState = statusMap[fac].orgState;
+            inorgState = statusMap[fac].inorgState;
+        }
 
         if (orgState === 'unsorted') pendingOrganicCount++;
         if (inorgState === 'unsorted') pendingInorganicCount++;
@@ -1793,129 +1796,46 @@ window.handleQuickToggleWaste = async function(facilityName, wasteType, targetSt
         return;
     }
 
-    let currentState = 'neutral';
-    let pendingComplaint = null;
-    let sortedComplaint = null;
-    let isMixedPending = false;
-    let isMixedSorted = false;
-
-    // 1. Tentukan status fasilitas & tipe sampah saat ini
-    complaints.forEach(c => {
-        if (c.location === facilityName) {
-            const isPending = (c.status || 'Pending') === 'Pending';
-            const cat = (c.category || '').toLowerCase();
-            
-            let affectsOrg = cat.includes('organik') && !cat.includes('anorganik');
-            let affectsInorg = cat.includes('anorganik') && !cat.includes('campur') && !cat.includes('organik & anorganik');
-            
-            if (cat.includes('campur') || cat.includes('organik & anorganik') || cat.includes('penuh') || cat === 'pemilahan sampah' || cat.includes('lainnya')) {
-                affectsOrg = true;
-                affectsInorg = true;
-            } else if (!affectsOrg && !affectsInorg) {
-                affectsOrg = true;
-            }
-
-            if (wasteType === 'organik' && affectsOrg) {
-                if (isPending) {
-                    currentState = 'unsorted';
-                    pendingComplaint = c;
-                    isMixedPending = affectsInorg;
-                } else if (c.status === 'Selesai' && currentState === 'neutral') {
-                    currentState = 'sorted';
-                    sortedComplaint = c;
-                    isMixedSorted = affectsInorg;
-                }
-            }
-            if (wasteType === 'anorganik' && affectsInorg) {
-                if (isPending) {
-                    currentState = 'unsorted';
-                    pendingComplaint = c;
-                    isMixedPending = affectsOrg;
-                } else if (c.status === 'Selesai' && currentState === 'neutral') {
-                    currentState = 'sorted';
-                    sortedComplaint = c;
-                    isMixedSorted = affectsOrg;
-                }
-            }
-        }
-    });
-
-    // 2. Fitur Undo: Jika diklik pada tombol yang sama, kembalikan ke netral
-    if (currentState === targetStatus) {
-        if (currentState === 'unsorted' && pendingComplaint) {
-            if (isMixedPending) {
-                pendingComplaint.category = wasteType === 'organik' ? 'Sampah Anorganik Belum Dipilah' : 'Sampah Organik Belum Dipilah';
-                await saveToDatabase('complaints', pendingComplaint.id, pendingComplaint, true);
-            } else {
-                await deleteFromDatabase('complaints', pendingComplaint.id);
-            }
-        } else if (currentState === 'sorted' && sortedComplaint) {
-            if (isMixedSorted) {
-                sortedComplaint.category = wasteType === 'organik' ? 'Sampah Anorganik Sudah Dipilah' : 'Sampah Organik Sudah Dipilah';
-                await saveToDatabase('complaints', sortedComplaint.id, sortedComplaint, true);
-            } else {
-                await deleteFromDatabase('complaints', sortedComplaint.id);
-            }
-        }
-        return;
-    }
-
-    // 3. Proses penandaan baru
     const actionDate = getQuickReportDate();
+    let petugasName = isAdmin ? 'Admin' : (isOperator ? 'Operator' : 'Sistem');
 
-    if (targetStatus === 'sorted') {
-        if (pendingComplaint) {
-            if (isMixedPending) {
-                pendingComplaint.category = wasteType === 'organik' ? 'Sampah Anorganik Belum Dipilah' : 'Sampah Organik Belum Dipilah';
-                pendingComplaint.response = pendingComplaint.response ? pendingComplaint.response + ` | ${wasteType} sudah dipilah.` : `${wasteType} sudah dipilah.`;
-                await saveToDatabase('complaints', pendingComplaint.id, pendingComplaint, true);
-            } else {
-                pendingComplaint.status = 'Selesai';
-                pendingComplaint.response = 'Selesai dipilah (Tandai Cepat).';
-                await saveToDatabase('complaints', pendingComplaint.id, pendingComplaint, true);
-            }
-        } else {
-            const compData = {
-                id: Date.now().toString(),
-                reporter: 'Admin/Operator (Pemeriksaan Rutin)',
-                role: isAdmin ? 'TIM Adiwiyata' : 'Kader Adiwiyata',
-                contact: '',
-                location: facilityName,
-                category: wasteType === 'organik' ? 'Sampah Organik Sudah Dipilah' : 'Sampah Anorganik Sudah Dipilah',
-                desc: 'Telah diperiksa dan dipilah dengan baik.',
-                status: 'Selesai',
-                response: 'Diverifikasi bersih.',
-                createdAt: actionDate
-            };
-            await saveToDatabase('complaints', compData.id, compData, false);
-        }
-    } else if (targetStatus === 'unsorted') {
-        // Hapus atau Ubah status 'Selesai' jika sebelumnya sudah dipilah
-        if (sortedComplaint) {
-            if (isMixedSorted) {
-                sortedComplaint.category = wasteType === 'organik' ? 'Sampah Anorganik Sudah Dipilah' : 'Sampah Organik Sudah Dipilah';
-                await saveToDatabase('complaints', sortedComplaint.id, sortedComplaint, true);
-            } else {
-                await deleteFromDatabase('complaints', sortedComplaint.id);
-            }
-        }
-        
-        let categoryName = wasteType === 'organik' ? 'Sampah Organik Belum Dipilah' : 'Sampah Anorganik Belum Dipilah';
-        
-        const compData = {
+    // Cari data laporan untuk fasilitas ini
+    let existingReportIdx = pemilahanSampah.findIndex(r => r.lokasi === facilityName);
+    let report;
+
+    if (existingReportIdx >= 0) {
+        report = { ...pemilahanSampah[existingReportIdx] };
+    } else {
+        report = {
             id: Date.now().toString(),
-            reporter: 'Admin/Operator (Pemeriksaan Rutin)',
-            role: isAdmin ? 'TIM Adiwiyata' : 'Kader Adiwiyata',
-            contact: '',
-            location: facilityName,
-            category: categoryName,
-            desc: 'Terpantau sampah belum dipilah (Tandai Cepat).',
-            status: 'Pending',
-            response: '',
-            createdAt: actionDate
+            tanggal: actionDate,
+            lokasi: facilityName,
+            status_organik: '',
+            status_anorganik: '',
+            petugas: petugasName,
+            catatan: 'Update Cepat',
+            updatedAt: new Date().toISOString()
         };
-        await saveToDatabase('complaints', compData.id, compData, false);
     }
+
+    let targetValue = targetStatus === 'sorted' ? 'Sudah' : 'Belum';
+    let currentValue = wasteType === 'organik' ? report.status_organik : report.status_anorganik;
+
+    // Fitur Undo: Jika diklik pada tombol yang sama, kembalikan ke netral (kosong)
+    if (currentValue === targetValue) {
+        if (wasteType === 'organik') report.status_organik = '';
+        else report.status_anorganik = '';
+    } else {
+        if (wasteType === 'organik') report.status_organik = targetValue;
+        else report.status_anorganik = targetValue;
+    }
+
+    report.tanggal = actionDate;
+    report.petugas = petugasName;
+    report.updatedAt = new Date().toISOString();
+
+    // Simpan ke GAS dengan koleksi yang benar (pemilahanSampah)
+    await saveToDatabase('pemilahanSampah', report.id, report, existingReportIdx >= 0);
 }
 
 window.openDetailComplaintForFacility = function(facilityName) {
@@ -1944,67 +1864,35 @@ window.markAllSorted = async function() {
         return;
     }
     if (confirm("Apakah Anda yakin ingin menandai SELURUH fasilitas sebagai 'Sudah Terpilah Rapi'?")) {
-        let batchUpdated = false;
         const actionDate = getQuickReportDate();
+        let petugasName = isAdmin ? 'Admin' : (isOperator ? 'Operator' : 'Sistem');
         
-        // 1. Selesaikan semua laporan yang masih Pending (khusus yang terkait sampah)
-        complaints.forEach(c => {
-            if ((c.status || 'Pending') === 'Pending') {
-                const cat = (c.category || '').toLowerCase();
-                if (cat.includes('organik') || cat.includes('campur') || cat === 'pemilahan sampah' || cat.includes('penuh') || cat.includes('lainnya')) {
-                    c.status = 'Selesai';
-                    c.response = 'Selesai dipilah massal.';
-                    batchUpdated = true;
-                }
-            }
-        });
-
-        // 2. Tandai fasilitas yang belum ada riwayat 'Selesai'
         facilities.forEach(fac => {
-            let isSorted = false;
-            complaints.forEach(c => {
-                if (c.location === fac && c.status === 'Selesai') {
-                    const cat = (c.category || '').toLowerCase();
-                    let affectsOrg = cat.includes('organik') && !cat.includes('anorganik');
-                    let affectsInorg = cat.includes('anorganik') && !cat.includes('campur') && !cat.includes('organik & anorganik');
-                    if (cat.includes('campur') || cat.includes('organik & anorganik') || cat.includes('penuh') || cat === 'pemilahan sampah' || cat.includes('lainnya')) {
-                        affectsOrg = true;
-                        affectsInorg = true;
-                    }
-                    if (affectsOrg && affectsInorg) {
-                        isSorted = true;
-                    }
-                }
-            });
-
-            if (!isSorted) {
-                const compData = {
+            let idx = pemilahanSampah.findIndex(r => r.lokasi === fac);
+            let report;
+            if (idx >= 0) {
+                report = pemilahanSampah[idx];
+            } else {
+                report = {
                     id: Date.now().toString() + '_' + Math.random().toString(36).substr(2, 5),
-                    reporter: 'Admin/Operator (Pemeriksaan Rutin)',
-                    role: isAdmin ? 'TIM Adiwiyata' : 'Kader Adiwiyata',
-                    contact: '',
-                    location: fac,
-                    category: 'Pemilahan Sampah',
-                    desc: 'Telah diperiksa dan dipilah secara massal.',
-                    status: 'Selesai',
-                    response: 'Diverifikasi bersih (Massal).',
-                    createdAt: actionDate
+                    lokasi: fac
                 };
-                complaints.unshift(compData);
-                batchUpdated = true;
+                pemilahanSampah.push(report);
             }
+            report.tanggal = actionDate;
+            report.status_organik = 'Sudah';
+            report.status_anorganik = 'Sudah';
+            report.petugas = petugasName;
+            report.catatan = 'Tandai Semua Bersih';
+            report.updatedAt = new Date().toISOString();
+            
+            // Fire and forget saves to avoid blocking
+            saveToDatabase('pemilahanSampah', report.id, report, idx >= 0).catch(console.error);
         });
 
-        if (batchUpdated) {
-            localStorage.setItem('sardas_complaints', JSON.stringify(complaints));
-            renderComplaints();
-            if (gasConfig && gasConfig.isConfigured()) {
-                saveToDatabase('settings', 'complaints_batch', complaints, true).catch(() => {});
-            }
-            alert("Seluruh ruangan berhasil ditandai sudah terpilah!");
-        } else {
-            alert("Semua ruangan sudah dalam keadaan terpilah rapi!");
-        }
+        localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
+        renderComplaints();
+        alert("Seluruh ruangan berhasil ditandai sudah dipilah rapi!");
     }
 };
 
@@ -2014,63 +1902,34 @@ window.markAllUnsorted = async function() {
         return;
     }
     if (confirm("Apakah Anda yakin ingin menandai SELURUH fasilitas sebagai 'Belum Dipilah'?")) {
-        let batchUpdated = false;
         const actionDate = getQuickReportDate();
+        let petugasName = isAdmin ? 'Admin' : (isOperator ? 'Operator' : 'Sistem');
 
-        // Tandai seluruh fasilitas dengan log Pending baru jika belum ada
         facilities.forEach(fac => {
-            let isUnsorted = false;
-            complaints.forEach(c => {
-                if (c.location === fac && (c.status || 'Pending') === 'Pending') {
-                    const cat = (c.category || '').toLowerCase();
-                    let affectsOrg = cat.includes('organik') && !cat.includes('anorganik');
-                    let affectsInorg = cat.includes('anorganik') && !cat.includes('campur') && !cat.includes('organik & anorganik');
-                    if (cat.includes('campur') || cat.includes('organik & anorganik') || cat.includes('penuh') || cat === 'pemilahan sampah' || cat.includes('lainnya')) {
-                        affectsOrg = true;
-                        affectsInorg = true;
-                    }
-                    if (affectsOrg && affectsInorg) {
-                        isUnsorted = true;
-                    }
-                }
-            });
-
-            if (!isUnsorted) {
-                // Hapus yang Selesai di fasilitas ini agar tertimpa Belum
-                for (let i = complaints.length - 1; i >= 0; i--) {
-                    let c = complaints[i];
-                    if (c.location === fac && c.status === 'Selesai') {
-                        complaints.splice(i, 1);
-                    }
-                }
-                
-                const compData = {
+            let idx = pemilahanSampah.findIndex(r => r.lokasi === fac);
+            let report;
+            if (idx >= 0) {
+                report = pemilahanSampah[idx];
+            } else {
+                report = {
                     id: Date.now().toString() + '_' + Math.random().toString(36).substr(2, 5),
-                    reporter: 'Admin/Operator (Pemeriksaan Rutin)',
-                    role: isAdmin ? 'TIM Adiwiyata' : 'Kader Adiwiyata',
-                    contact: '',
-                    location: fac,
-                    category: 'Sampah Organik & Anorganik Belum Dipilah',
-                    desc: 'Terpantau sampah belum dipilah (Massal).',
-                    status: 'Pending',
-                    response: '',
-                    createdAt: actionDate
+                    lokasi: fac
                 };
-                complaints.unshift(compData);
-                batchUpdated = true;
+                pemilahanSampah.push(report);
             }
+            report.tanggal = actionDate;
+            report.status_organik = 'Belum';
+            report.status_anorganik = 'Belum';
+            report.petugas = petugasName;
+            report.catatan = 'Tandai Semua Belum Dipilah';
+            report.updatedAt = new Date().toISOString();
+            
+            saveToDatabase('pemilahanSampah', report.id, report, idx >= 0).catch(console.error);
         });
 
-        if (batchUpdated) {
-            localStorage.setItem('sardas_complaints', JSON.stringify(complaints));
-            renderComplaints();
-            if (gasConfig && gasConfig.isConfigured()) {
-                saveToDatabase('settings', 'complaints_batch', complaints, true).catch(() => {});
-            }
-            alert("Seluruh ruangan berhasil ditandai belum dipilah!");
-        } else {
-            alert("Semua ruangan sudah dalam keadaan belum dipilah!");
-        }
+        localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
+        renderComplaints();
+        alert("Seluruh ruangan berhasil ditandai belum dipilah!");
     }
 };
 
@@ -2079,35 +1938,19 @@ window.clearAllStatus = async function() {
         alert('Silakan login terlebih dahulu untuk membersihkan status secara massal.');
         return;
     }
-    if (confirm("Apakah Anda yakin ingin MENGHAPUS / MEMBERSIHKAN semua status pilihan (Sudah/Belum)?")) {
-        let batchUpdated = false;
-
-        for (let i = complaints.length - 1; i >= 0; i--) {
-            let c = complaints[i];
-            if (c.reporter === 'Admin/Operator (Pemeriksaan Rutin)') {
-                // Hapus data hasil massal
-                complaints.splice(i, 1);
-                batchUpdated = true;
-            } else if (c.response === 'Selesai dipilah massal.') {
-                // Kembalikan ke Pending jika sebelumnya diselesaikan massal
-                c.status = 'Pending';
-                c.response = '';
-                batchUpdated = true;
-            }
-        }
-
-        if (batchUpdated) {
-            localStorage.setItem('sardas_complaints', JSON.stringify(complaints));
-            renderComplaints();
-            if (typeof gasConfig !== 'undefined' && gasConfig && gasConfig.isConfigured()) {
-                if (typeof saveToDatabase === 'function') {
-                    saveToDatabase('settings', 'complaints_batch', complaints, true).catch(() => {});
-                }
-            }
-            alert("Seluruh status ruangan (massal) berhasil dibersihkan!");
-        } else {
-            alert("Tidak ada status massal yang dapat dibersihkan.");
-        }
+    if (confirm("Perhatian! Aksi ini akan membersihkan semua indikator pemilahan sampah hari ini.\n\nApakah Anda yakin ingin menghapus/mereset status untuk seluruh fasilitas?")) {
+        // Hapus semua data dari pemilahanSampah (atau buat kosong)
+        const oldReports = [...pemilahanSampah];
+        pemilahanSampah = [];
+        localStorage.setItem('sardas_reports', '[]');
+        renderComplaints();
+        
+        // Hapus dari database (fire and forget)
+        oldReports.forEach(r => {
+            deleteFromDatabase('pemilahanSampah', r.id).catch(console.error);
+        });
+        
+        alert("Status pemilahan semua fasilitas telah direset (Netral).");
     }
 };
 
@@ -2601,60 +2444,60 @@ function renderReportTable(type) {
         }
         const cat = (catFilter && catFilter.value) ? catFilter.value : 'all';
 
-        let filteredComplaints = complaints.filter(cp => {
+        let filteredReports = pemilahanSampah.filter(cp => {
             if (!cp) return false;
             let matchDate = true;
-            if (cp.createdAt) {
-                const cpDate = new Date(cp.createdAt);
-                if (start && cpDate < start) matchDate = false;
-                if (end && cpDate > end) matchDate = false;
+            if (cp.tanggal) {
+                // Ensure date parsing doesn't fail
+                const cpDateStr = typeof cp.tanggal === 'string' ? cp.tanggal.split('T')[0] : '';
+                if (cpDateStr) {
+                    const cpDate = new Date(cpDateStr + 'T00:00:00');
+                    if (start && cpDate < start) matchDate = false;
+                    if (end && cpDate > end) matchDate = false;
+                }
             }
-            let matchCat = true;
-            const cpCat = (cp.category || '').toLowerCase();
             
-            // Filter out non-sampah data (like listrik, lampu, etc) from this specific report
-            if (cpCat.includes('listrik') || cpCat.includes('lampu') || cpCat.includes('energi') || cpCat.includes('air') || cpCat.includes('penghijauan') || cpCat.includes('kelistrikan') || cpCat.includes('konservasi')) {
-                matchCat = false;
-            }
-
+            let matchCat = true;
             if (cat !== 'all') {
-                if (cat === 'organik' && !cpCat.includes('organik')) matchCat = false;
-                if (cat === 'anorganik' && !cpCat.includes('anorganik')) matchCat = false;
-                if (cat === 'organik' && cpCat.includes('anorganik') && !cpCat.includes('organik & anorganik') && !cpCat.includes('campur')) matchCat = false;
+                if (cat === 'organik' && cp.status_organik === '') matchCat = false;
+                if (cat === 'anorganik' && cp.status_anorganik === '') matchCat = false;
             }
             return matchDate && matchCat;
         });
 
         if (titleHeading) titleHeading.textContent = 'Laporan Rekapitulasi Pemilahan Sampah';
-        if (subHeading) subHeading.textContent = `Total: ${filteredComplaints.length} Data (Periode: ${(start ? start.toLocaleDateString('id-ID') : 'Semua')}${(end ? ' s.d ' + end.toLocaleDateString('id-ID') : '')})`;
+        if (subHeading) subHeading.textContent = `Total: ${filteredReports.length} Data (Periode: ${(start ? start.toLocaleDateString('id-ID') : 'Semua')}${(end ? ' s.d ' + end.toLocaleDateString('id-ID') : '')})`;
 
         header.innerHTML = `
             <tr>
                 <th style="padding: 8px 10px; border: 1px solid #cbd5e1; width: 40px; text-align: center;">No</th>
-                <th style="padding: 8px 10px; border: 1px solid #cbd5e1;">Tanggal Masuk</th>
-                <th style="padding: 8px 10px; border: 1px solid #cbd5e1;">Pelapor</th>
+                <th style="padding: 8px 10px; border: 1px solid #cbd5e1;">Tanggal Update</th>
                 <th style="padding: 8px 10px; border: 1px solid #cbd5e1;">Lokasi Ruangan</th>
-                <th style="padding: 8px 10px; border: 1px solid #cbd5e1;">Kategori</th>
-                <th style="padding: 8px 10px; border: 1px solid #cbd5e1;">Deskripsi Pengaduan</th>
-                <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Status</th>
+                <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Organik</th>
+                <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">Anorganik</th>
+                <th style="padding: 8px 10px; border: 1px solid #cbd5e1;">Petugas</th>
+                <th style="padding: 8px 10px; border: 1px solid #cbd5e1;">Catatan</th>
             </tr>
         `;
 
-        if (filteredComplaints.length === 0) {
+        if (filteredReports.length === 0) {
             body.innerHTML = '<tr><td colspan="7" style="padding: 16px; text-align: center; color: #64748b;">Belum ada data pemilahan.</td></tr>';
             return;
         }
 
-        filteredComplaints.forEach((cp, idx) => {
+        filteredReports.forEach((cp, idx) => {
+            const orgText = cp.status_organik || '-';
+            const anorgText = cp.status_anorganik || '-';
+            
             body.innerHTML += `
                 <tr>
                     <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">${idx + 1}</td>
-                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">${cp.createdAt ? new Date(cp.createdAt).toLocaleString('id-ID') : '-'}</td>
-                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1; font-weight: 600;">${cp.reporter || '-'} (${cp.role || 'Warga'})</td>
-                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">${cp.location || '-'}</td>
-                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">${cp.category || '-'}</td>
-                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">${cp.desc || '-'}</td>
-                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">${cp.status || 'Pending'}</td>
+                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">${cp.tanggal || '-'}</td>
+                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1; font-weight: 600;">${cp.lokasi || '-'}</td>
+                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">${orgText === 'Sudah' ? '<span style="color:#16a34a;font-weight:bold;">Selesai</span>' : (orgText === 'Belum' ? '<span style="color:#dc2626;font-weight:bold;">Pending</span>' : '-')}</td>
+                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">${anorgText === 'Sudah' ? '<span style="color:#16a34a;font-weight:bold;">Selesai</span>' : (anorgText === 'Belum' ? '<span style="color:#dc2626;font-weight:bold;">Pending</span>' : '-')}</td>
+                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">${cp.petugas || '-'}</td>
+                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">${cp.catatan || '-'}</td>
                 </tr>
             `;
         });
