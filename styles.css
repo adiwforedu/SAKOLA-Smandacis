@@ -249,39 +249,14 @@ body.admin-mode .cms-editable:hover::after {
 }
 
 @media (max-width: 768px) {
-    .quick-report-table thead { display: none; }
-    .quick-report-table tbody tr {
-        display: flex;
-        flex-direction: column;
-        border: none;
-        border-radius: 12px;
-        margin-bottom: 12px;
-        padding: 14px;
-        background: linear-gradient(135deg, rgba(255,255,255,1) 0%, rgba(241,245,249,0.8) 100%);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        position: relative;
-        overflow: hidden;
+    .quick-report-table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 0 -1rem;
+        padding: 0 1rem;
     }
-    .quick-report-table tbody tr::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; width: 4px; height: 100%;
-        background: var(--color-primary);
-        border-radius: 4px 0 0 4px;
-    }
-    .quick-report-table td {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 6px 4px;
-        border: none;
-        width: 100%;
-    }
-    .quick-report-table td::before {
-        content: attr(data-label);
-        font-weight: 700;
-        font-size: 0.8rem;
-        color: var(--color-text-muted);
+    .quick-report-table {
+        min-width: 600px; /* Force table to be wider than screen to enable scrolling, keeping it single line */
     }
 }
 .logo-container {

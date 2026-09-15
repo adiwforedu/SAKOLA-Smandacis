@@ -296,6 +296,14 @@ async function init() {
     // 2. Jika GAS dikonfigurasi, muat dari backend Google Apps Script
     if (gasConfig && gasConfig.isConfigured()) {
         await loadFromGAS();
+        
+        // 3. Setup polling untuk sinkronisasi realtime (setiap 10 detik)
+        setInterval(() => {
+            // Hanya melakukan polling jika halaman sedang aktif dibuka untuk menghemat kuota
+            if (!document.hidden) {
+                loadFromGAS(true);
+            }
+        }, 10000);
     } else {
         console.info("GAS Web App URL belum dikonfigurasi di gas-config.js. Berjalan dalam mode penyimpanan lokal.");
     }
@@ -318,8 +326,8 @@ async function init() {
 }
 
 // --- Data Fetching (Google Apps Script / LocalStorage) ---
-async function loadFromGAS() {
-    if (DOM.loadingIndicator) DOM.loadingIndicator.classList.remove('hidden');
+async function loadFromGAS(isSilent = false) {
+    if (!isSilent && DOM.loadingIndicator) DOM.loadingIndicator.classList.remove('hidden');
     try {
         const response = await fetch(gasConfig.webAppUrl + '?action=getAll');
         const resJson = await response.json();
@@ -434,7 +442,7 @@ async function loadFromGAS() {
     } catch (err) {
         console.warn("Gagal terhubung ke Google Apps Script Web App:", err);
     } finally {
-        if (DOM.loadingIndicator) DOM.loadingIndicator.classList.add('hidden');
+        if (!isSilent && DOM.loadingIndicator) DOM.loadingIndicator.classList.add('hidden');
         renderApp();
     }
 }
