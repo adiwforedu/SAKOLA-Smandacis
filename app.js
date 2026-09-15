@@ -111,7 +111,7 @@ let currentComplaintStatusFilter = "all";
 let facilityChoices = null; // Instance for Choices.js
 let cmsContent = {
     headerTitle: "SAKOLA - SMAN 2 CIAMIS",
-    headerSubtitle: "Sistem Informasi Sarana & Prasarana - SMAN 2 Ciamis",
+    headerSubtitle: "Sistem Analisis Kendali Orientasi Lingkungan Adiwiyata",
     mainHeading: "Jadwal Penggunaan Mendatang",
     footerText: "© 2026 SMAN 2 Ciamis. All rights reserved."
 };
