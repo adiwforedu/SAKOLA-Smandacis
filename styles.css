@@ -845,12 +845,11 @@ body.admin-mode .card-actions {
 input[type="date"].form-control {
     background-color: #ffffff;
     color: var(--color-text);
-    -webkit-appearance: none;
-    appearance: none;
-    min-height: 38px; /* Ensure sufficient touch target height */
+    min-height: 38px;
+    min-width: 130px;
 }
-input[type="date"].form-control::-webkit-date-and-time-value {
-    text-align: left;
+input[type="date"].form-control::-webkit-datetime-edit {
+    color: var(--color-text);
 }
 .help-text {
     font-size: 0.8rem;
