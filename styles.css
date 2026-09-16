@@ -304,7 +304,7 @@ body.admin-mode .cms-editable:hover::after {
         padding: 4px 8px; /* Lebih ringkas di HP */
     }
     .quick-report-table thead th {
-        top: 65px; /* Offset header slightly different on mobile if needed */
+        top: 0; /* Fix: Stick directly to top of scrolling wrapper on mobile */
     }
     .quick-report-header > div:last-child {
         justify-content: flex-start;
@@ -839,6 +839,18 @@ body.admin-mode .card-actions {
     outline: none;
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1);
+}
+
+/* Fix for iOS/mobile date input showing solid grey box */
+input[type="date"].form-control {
+    background-color: #ffffff;
+    color: var(--color-text);
+    -webkit-appearance: none;
+    appearance: none;
+    min-height: 38px; /* Ensure sufficient touch target height */
+}
+input[type="date"].form-control::-webkit-date-and-time-value {
+    text-align: left;
 }
 .help-text {
     font-size: 0.8rem;
