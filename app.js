@@ -1,6 +1,49 @@
 // Mengambil konfigurasi GAS dari window (yang di-set oleh gas-config.js)
 const { gasConfig } = window;
 
+// --- Native Popup Polyfills (SweetAlert2) ---
+window.alertSwal = function(msg) {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({ text: msg, icon: 'info', confirmButtonColor: '#166534' });
+    } else {
+        console.log("Alert:", msg); // Fallback
+    }
+};
+
+window.confirmAsync = async function(msg) {
+    if (typeof Swal !== 'undefined') {
+        const res = await Swal.fire({
+            text: msg,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#166534',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Ya, Lanjutkan',
+            cancelButtonText: 'Batal',
+            reverseButtons: true
+        });
+        return res.isConfirmed;
+    }
+    return true; // Fallback
+};
+
+window.promptAsync = async function(title, defaultText) {
+    if (typeof Swal !== 'undefined') {
+        const res = await Swal.fire({
+            title: title,
+            input: 'text',
+            inputValue: defaultText || '',
+            showCancelButton: true,
+            confirmButtonColor: '#166534',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Simpan',
+            cancelButtonText: 'Batal'
+        });
+        return res.isConfirmed ? res.value : null;
+    }
+    return defaultText; // Fallback
+};
+
 // --- Fasilitas Standar SMAN 2 Ciamis ---
 const DEFAULT_FACILITIES = [
     "Ruang Guru", "Ruang Kepala Sekolah", "Ruang TU", "Aula", "Kantin", "GOR", "Mesjid", "Perpustakaan", "UKS",
@@ -152,6 +195,7 @@ function loadMapCoordinatesFromLocalStorage() {
 const DOM = {
     adminLoginBtn: document.getElementById('adminLoginBtn'),
     adminLogoutBtn: document.getElementById('adminLogoutBtn'),
+    headerReportBtn: document.getElementById('headerReportBtn'),
     adminActions: document.getElementById('adminActions'),
     loginModal: document.getElementById('loginModal'),
     closeLoginModal: document.getElementById('closeLoginModal'),
@@ -269,23 +313,15 @@ async function init() {
     loadFromLocalStorage();
     renderApp();
 
-    // 2. Jika GAS dikonfigurasi, muat dari backend Google Apps Script
-    if (gasConfig && gasConfig.isConfigured()) {
-        await loadFromGAS();
-        
-        // 3. Setup polling untuk sinkronisasi realtime (setiap 10 detik)
-        setInterval(() => {
-            // Hanya melakukan polling jika halaman sedang aktif dibuka untuk menghemat kuota
-            if (!document.hidden) {
-                loadFromGAS(true);
-            }
-        }, 10000);
+    // 2. Jika Firebase dikonfigurasi, muat dari backend Firestore
+    if (window.gasConfig && window.gasConfig.isConfigured()) {
+        await loadFromFirebase();
     } else {
         console.info("GAS Web App URL belum dikonfigurasi di gas-config.js. Berjalan dalam mode penyimpanan lokal.");
     }
 
     setupEventListeners();
-    
+
     // Inisialisasi Date Picker dengan tanggal hari ini
     const today = new Date().toISOString().split('T')[0];
     if (document.getElementById('quickReportDate')) document.getElementById('quickReportDate').value = today;
@@ -301,140 +337,131 @@ async function init() {
     updateAccessControlUI();
 }
 
-// --- Data Fetching (Google Apps Script / LocalStorage) ---
-async function loadFromGAS(isSilent = false) {
+// --- Data Fetching (Firebase / LocalStorage) ---
+async function loadFromFirebase(isSilent = false) {
     if (!isSilent && DOM.loadingIndicator) DOM.loadingIndicator.classList.remove('hidden');
     try {
-        const response = await fetch(gasConfig.webAppUrl + '?action=getAll');
-        const resJson = await response.json();
+        if (!window.gasConfig || !window.gasConfig.isConfigured()) {
+            throw new Error("Firebase belum terkonfigurasi");
+        }
 
-        if (resJson && resJson.status === 'success' && resJson.data) {
-            isGasAvailable = true;
-            const data = resJson.data;
+        const fbDb = firebase.firestore();
 
-            // 1. Events (Smart Merge dengan Histori Default)
+        // 1. Ambil Settings (Fasilitas, CMS, Map Coordinates)
+        const settingsSnap = await fbDb.collection('settings').get();
+        let gasMap = {};
+        let gasFacs = [];
+        let gasCms = {};
+        let gasKopSurat = {};
+
+        settingsSnap.forEach(doc => {
+            if (doc.id === 'mapCoordinates') gasMap = doc.data().coords || doc.data();
+            else if (doc.id === 'facilities') gasFacs = Array.isArray(doc.data().list) ? doc.data().list : doc.data();
+            else if (doc.id === 'cms') gasCms = doc.data();
+            else if (doc.id === 'kopSurat') gasKopSurat = doc.data();
+        });
+
+        // Smart Merge Map Coordinates (Local vs Firebase)
+        const localMap = loadMapCoordinatesFromLocalStorage() || {};
+        mapCoordinates = { ...gasMap, ...localMap }; // localMap menang jika ada duplikat (baru diset lokal)
+        localStorage.setItem(LOCAL_STORAGE_KEYS.mapCoordinates, JSON.stringify({ coords: mapCoordinates }));
+        if (Object.keys(mapCoordinates).length > Object.keys(gasMap).length) {
+            await fbDb.collection('settings').doc('mapCoordinates').set({ coords: mapCoordinates }, { merge: true });
+        }
+
+        // Smart Merge Facilities
+        const localFacs = loadFacilitiesFromLocalStorage() || [];
+        const mergedFacSet = new Set([...DEFAULT_FACILITIES, ...gasFacs, ...localFacs]);
+        facilities = Array.from(mergedFacSet);
+        localStorage.setItem(LOCAL_STORAGE_KEYS.facilities, JSON.stringify(facilities));
+        if (facilities.length > gasFacs.length) {
+            await fbDb.collection('settings').doc('facilities').set({ list: facilities }, { merge: true });
+        }
+
+        // CMS & Kop Surat
+        if (Object.keys(gasCms).length > 0) {
+            cmsContent = { ...cmsContent, ...gasCms };
+            localStorage.setItem('sardas_cms', JSON.stringify(cmsContent));
+        }
+        if (Object.keys(gasKopSurat).length > 0) {
+            kopSuratConfig = { ...kopSuratConfig, ...gasKopSurat };
+            localStorage.setItem('sardas_kop_surat', JSON.stringify(kopSuratConfig));
+        }
+
+        // 2. Setup Real-time Listener untuk Pemilahan Sampah
+        fbDb.collection('pemilahanSampah').onSnapshot(snapshot => {
+            let reportsData = [];
+            snapshot.forEach(doc => reportsData.push(doc.data()));
+
+            if (reportsData.length === 0) {
+                const localReports = JSON.parse(localStorage.getItem('sardas_reports') || '[]');
+                if (localReports.length > 0) {
+                    localReports.forEach(r => fbDb.collection('pemilahanSampah').doc(r.id).set(r, { merge: true }));
+                    return;
+                }
+            } else {
+                pemilahanSampah = reportsData;
+                localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
+                if (typeof renderComplaints === 'function') renderComplaints();
+            }
+        });
+
+        // 3. Helper Fetch Koleksi Lainnya
+        const fetchCollection = async (colName, mergeLogic) => {
+            const snap = await fbDb.collection(colName).get();
+            let arr = [];
+            snap.forEach(doc => arr.push(doc.data()));
+            await mergeLogic(arr);
+        };
+
+        await fetchCollection('events', async (gasEvents) => {
             const localEvents = (JSON.parse(localStorage.getItem('sardas_events') || '[]')).filter(e => e && e.id && !e.id.startsWith('ev_'));
-            const gasEvents = Array.isArray(data.events) ? data.events.filter(e => e && e.id && !e.id.startsWith('ev_')) : [];
             const mergedEventsMap = new Map();
-            [...DEFAULT_EVENTS, ...localEvents, ...gasEvents].forEach(item => {
-                if (item && item.id) mergedEventsMap.set(item.id, item);
-            });
-            events = Array.from(mergedEventsMap.values());
-            events.sort((a, b) => new Date(a.date) - new Date(b.date));
+            [...DEFAULT_EVENTS, ...gasEvents, ...localEvents].forEach(item => { if (item && item.id) mergedEventsMap.set(item.id, item); });
+            events = Array.from(mergedEventsMap.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
             localStorage.setItem('sardas_events', JSON.stringify(events));
+            if (events.length > gasEvents.length) events.forEach(e => fbDb.collection('events').doc(e.id).set(e, { merge: true }));
+        });
 
-            // 2. Vehicles (Smart Merge dengan Histori Default)
+        await fetchCollection('vehicles', async (gasVehicles) => {
             const localVehicles = JSON.parse(localStorage.getItem('sardas_vehicles') || '[]');
-            const gasVehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
             const mergedVehiclesMap = new Map();
-            [...DEFAULT_VEHICLES, ...localVehicles, ...gasVehicles].forEach(item => {
-                if (item && item.id) mergedVehiclesMap.set(item.id, item);
-            });
+            [...DEFAULT_VEHICLES, ...gasVehicles, ...localVehicles].forEach(item => { if (item && item.id) mergedVehiclesMap.set(item.id, item); });
             vehicles = Array.from(mergedVehiclesMap.values());
             localStorage.setItem('sardas_vehicles', JSON.stringify(vehicles));
+            if (vehicles.length > gasVehicles.length) vehicles.forEach(v => fbDb.collection('vehicles').doc(v.id).set(v, { merge: true }));
+        });
 
-            // 3. Complaints (Smart Merge dengan Histori Default)
+        await fetchCollection('complaints', async (gasComplaints) => {
             const localComplaints = JSON.parse(localStorage.getItem('sardas_complaints') || '[]');
-            const gasComplaints = Array.isArray(data.complaints) ? data.complaints : [];
             const mergedComplaintsMap = new Map();
-            [...DEFAULT_COMPLAINTS, ...gasComplaints, ...localComplaints].forEach(item => {
-                if (item && item.id) {
-                    const existing = mergedComplaintsMap.get(item.id);
-                    if (existing) {
-                        mergedComplaintsMap.set(item.id, {
-                            ...existing,
-                            ...item,
-                            reporter: item.reporter || existing.reporter || 'Warga Sekolah',
-                            role: item.role || existing.role || 'Siswa',
-                            contact: item.contact !== undefined ? item.contact : (existing.contact || ''),
-                            location: item.location || existing.location || '-',
-                            category: item.category || existing.category || 'Lainnya',
-                            desc: item.desc || existing.desc || '-',
-                            status: item.status || existing.status || 'Pending',
-                            response: item.response !== undefined ? item.response : (existing.response || '')
-                        });
-                    } else {
-                        mergedComplaintsMap.set(item.id, item);
-                    }
-                }
-            });
-            complaints = Array.from(mergedComplaintsMap.values());
-            complaints.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+            [...DEFAULT_COMPLAINTS, ...gasComplaints, ...localComplaints].forEach(item => { if (item && item.id) mergedComplaintsMap.set(item.id, item); });
+            complaints = Array.from(mergedComplaintsMap.values()).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
             localStorage.setItem('sardas_complaints', JSON.stringify(complaints));
+            if (complaints.length > gasComplaints.length) complaints.forEach(c => fbDb.collection('complaints').doc(c.id).set(c, { merge: true }));
+        });
 
-            // 3.5 Pemilahan Sampah
-            if (Array.isArray(data.pemilahanSampah)) {
-                pemilahanSampah = data.pemilahanSampah.map(r => ({
-                    id: r.id,
-                    type: 'pemilahan_sampah',
-                    tanggal: r.tanggal,
-                    lokasi: r.lokasi,
-                    status_organik: r.status_organik,
-                    status_anorganik: r.status_anorganik,
-                    petugas: r.petugas || '',
-                    catatan: r.catatan || '',
-                    updatedAt: r.updatedAt
-                }));
-                localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
-            } else {
-                pemilahanSampah = JSON.parse(localStorage.getItem('sardas_reports') || '[]');
-            }
+        await fetchCollection('consumables', async (gasConsumables) => {
+            const localCons = JSON.parse(localStorage.getItem('sardas_consumables') || '[]');
+            const mergedConsMap = new Map();
+            [...DEFAULT_CONSUMABLES, ...gasConsumables, ...localCons].forEach(item => { if (item && item.id) mergedConsMap.set(item.id, item); });
+            consumables = Array.from(mergedConsMap.values());
+            localStorage.setItem('sardas_consumables', JSON.stringify(consumables));
+            if (consumables.length > gasConsumables.length) consumables.forEach(c => fbDb.collection('consumables').doc(c.id).set(c, { merge: true }));
+        });
 
-            // 4. Consumables (Barang Habis Pakai)
-            if (Array.isArray(data.consumables) && data.consumables.length > 0) {
-                const localCons = JSON.parse(localStorage.getItem('sardas_consumables') || '[]');
-                const mergedConsMap = new Map();
-                [...DEFAULT_CONSUMABLES, ...localCons, ...data.consumables].forEach(item => {
-                    if (item && item.id) mergedConsMap.set(item.id, item);
-                });
-                consumables = Array.from(mergedConsMap.values());
-                localStorage.setItem('sardas_consumables', JSON.stringify(consumables));
-            }
+        await fetchCollection('consumable_logs', async (gasLogs) => {
+            const localLogs = JSON.parse(localStorage.getItem('sardas_consumable_logs') || '[]');
+            const mergedLogsMap = new Map();
+            [...gasLogs, ...localLogs].forEach(item => { if (item && item.id) mergedLogsMap.set(item.id, item); });
+            consumableLogs = Array.from(mergedLogsMap.values()).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+            localStorage.setItem('sardas_consumable_logs', JSON.stringify(consumableLogs));
+            if (consumableLogs.length > gasLogs.length) consumableLogs.forEach(l => fbDb.collection('consumable_logs').doc(l.id).set(l, { merge: true }));
+        });
 
-            // 5. Consumable Logs (Riwayat Mutasi)
-            if (Array.isArray(data.consumable_logs)) {
-                consumableLogs = data.consumable_logs;
-                consumableLogs.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-                localStorage.setItem('sardas_consumable_logs', JSON.stringify(consumableLogs));
-            }
-
-            // 6. Facilities (Smart Merge: Kombinasi Default + LocalStorage + GAS)
-            const localFacs = loadFacilitiesFromLocalStorage() || [];
-            const gasFacs = Array.isArray(data.facilities) ? data.facilities : [];
-            const mergedFacSet = new Set([...DEFAULT_FACILITIES, ...localFacs, ...gasFacs]);
-            facilities = Array.from(mergedFacSet);
-            localStorage.setItem(LOCAL_STORAGE_KEYS.facilities, JSON.stringify(facilities));
-
-            // Jika data di GAS lebih sedikit dari data gabungan, sinkronkan balik ke GAS
-            if (gasFacs.length < facilities.length) {
-                saveToGAS('facilities', 'facilities', facilities);
-            }
-
-            // 7. Settings (CMS Content & Map Coordinates)
-            const localMap = loadMapCoordinatesFromLocalStorage() || {};
-            let gasMap = {};
-            if (data.settings && typeof data.settings === 'object') {
-                if (data.settings.cms) {
-                    cmsContent = { ...cmsContent, ...data.settings.cms };
-                    localStorage.setItem('sardas_cms', JSON.stringify(cmsContent));
-                }
-                if (data.settings.mapCoordinates && typeof data.settings.mapCoordinates === 'object') {
-                    gasMap = data.settings.mapCoordinates.coords || data.settings.mapCoordinates;
-                }
-                if (data.settings.kopSurat && typeof data.settings.kopSurat === 'object') {
-                    kopSuratConfig = { ...kopSuratConfig, ...data.settings.kopSurat };
-                    localStorage.setItem('sardas_kop_surat', JSON.stringify(kopSuratConfig));
-                }
-            }
-            mapCoordinates = { ...localMap, ...gasMap };
-            localStorage.setItem(LOCAL_STORAGE_KEYS.mapCoordinates, JSON.stringify({ coords: mapCoordinates }));
-
-            if (Object.keys(mapCoordinates).length > Object.keys(gasMap).length) {
-                saveToGAS('settings', 'mapCoordinates', { coords: mapCoordinates });
-            }
-        }
     } catch (err) {
-        console.warn("Gagal terhubung ke Google Apps Script Web App:", err);
+        console.warn("Gagal terhubung ke Firebase:", err);
+        loadFromLocalStorage();
     } finally {
         if (!isSilent && DOM.loadingIndicator) DOM.loadingIndicator.classList.add('hidden');
         renderApp();
@@ -597,33 +624,24 @@ async function saveToDatabase(collectionName, docId, data, isUpdate = false) {
         }
     }
 
-    // 2. Sinkronisasikan ke GAS jika URL sudah dikonfigurasi (Latar belakang non-blocking)
-    if (gasConfig && gasConfig.isConfigured()) {
-        saveToGAS(collectionName, docId, data, isUpdate).catch(err => {
-            console.warn(`Sinkronisasi latar belakang ke GAS gagal untuk ${collectionName}:`, err);
-        });
+    // 2. Sinkronisasikan ke Firebase (Latar belakang non-blocking)
+    if (window.gasConfig && window.gasConfig.isConfigured()) {
+        try {
+            const fbDb = firebase.firestore();
+            if (collectionName === 'settings') {
+                fbDb.collection('settings').doc(docId).set(data, { merge: true }).catch(console.error);
+            } else {
+                const targetDocId = docId || data.id;
+                fbDb.collection(collectionName).doc(targetDocId).set(data, { merge: true }).catch(console.error);
+            }
+        } catch (err) {
+            console.warn(`Sinkronisasi latar belakang ke Firebase gagal untuk ${collectionName}:`, err);
+        }
     }
 }
 
 async function saveToGAS(collectionName, docId, data, isUpdate = false) {
-    try {
-        const payload = {
-            action: (collectionName === 'settings' || collectionName === 'facilities') ? 'saveSetting' : 'saveDoc',
-            collection: collectionName,
-            docId: docId,
-            data: data,
-            isUpdate: isUpdate
-        };
-
-        await fetch(gasConfig.webAppUrl, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-    } catch (err) {
-        console.warn(`Gagal mengirim data ${collectionName} ke Google Apps Script:`, err);
-    }
+    // Fungsi usang: telah digantikan oleh logika saveToDatabase (Firebase) di atas.
 }
 
 async function deleteFromDatabase(collectionName, docId) {
@@ -646,21 +664,12 @@ async function deleteFromDatabase(collectionName, docId) {
         renderConsumables();
     }
 
-    // 2. Menghapus di GAS
-    if (gasConfig && gasConfig.isConfigured()) {
+    // 2. Menghapus di Firebase
+    if (window.gasConfig && window.gasConfig.isConfigured()) {
         try {
-            await fetch(gasConfig.webAppUrl, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'deleteDoc',
-                    collection: collectionName,
-                    docId: docId
-                })
-            });
+            await firebase.firestore().collection(collectionName).doc(docId).delete();
         } catch (err) {
-            console.warn(`Gagal menghapus ${collectionName}/${docId} dari Google Apps Script:`, err);
+            console.warn(`Gagal menghapus ${collectionName}/${docId} dari Firebase:`, err);
         }
     }
 }
@@ -953,7 +962,7 @@ function addConsumableItemRow(selectedItemId = "", selectedQty = 1) {
         if (DOM.consumableItemRowsContainer.children.length > 1) {
             row.remove();
         } else {
-            alert('Minimal 1 barang harus dipilih.');
+            window.alertSwal('Minimal 1 barang harus dipilih.');
         }
     });
 
@@ -978,13 +987,13 @@ async function handlePublicMultiOutSubmit(e) {
     const pwd = pwdInput ? pwdInput.value.trim() : '';
 
     if (pwd !== 'sarpras_dua' && pwd !== 'Andalusia_2') {
-        alert('Password verifikasi salah! Silakan periksa kembali password yang Anda masukkan.');
+        window.alertSwal('Password verifikasi salah! Silakan periksa kembali password yang Anda masukkan.');
         return;
     }
 
     const rows = DOM.consumableItemRowsContainer ? DOM.consumableItemRowsContainer.querySelectorAll('.consumable-row-item') : [];
     if (rows.length === 0) {
-        alert('Silakan pilih minimal 1 barang.');
+        window.alertSwal('Silakan pilih minimal 1 barang.');
         return;
     }
 
@@ -999,22 +1008,22 @@ async function handlePublicMultiOutSubmit(e) {
         const qty = parseInt(r.querySelector('.item-qty').value);
 
         if (!itemId) {
-            alert('Silakan pilih barang pada setiap baris.');
+            window.alertSwal('Silakan pilih barang pada setiap baris.');
             return;
         }
         if (isNaN(qty) || qty <= 0) {
-            alert('Jumlah pengambilan barang harus lebih dari 0.');
+            window.alertSwal('Jumlah pengambilan barang harus lebih dari 0.');
             return;
         }
 
         const item = consumables.find(c => c.id === itemId);
         if (!item) {
-            alert('Barang tidak ditemukan.');
+            window.alertSwal('Barang tidak ditemukan.');
             return;
         }
 
         if (Number(item.stock) < qty) {
-            alert(`Stok barang "${item.name}" tidak mencukupi! Sisa stok saat ini: ${item.stock} ${item.unit}.`);
+            window.alertSwal(`Stok barang "${item.name}" tidak mencukupi! Sisa stok saat ini: ${item.stock} ${item.unit}.`);
             return;
         }
 
@@ -1044,7 +1053,7 @@ async function handlePublicMultiOutSubmit(e) {
 
     renderConsumables();
     if (DOM.publicMultiOutModal) DOM.publicMultiOutModal.classList.add('hidden');
-    alert(`Berhasil mencatat pengambilan ${pendingTransactions.length} jenis barang!`);
+    window.alertSwal(`Berhasil mencatat pengambilan ${pendingTransactions.length} jenis barang!`);
 }
 
 function openAdminConsumableModal(item = null) {
@@ -1084,14 +1093,14 @@ async function handleAdminSaveConsumable(e) {
     await saveToDatabase('consumables', itemData.id, itemData, Boolean(id));
     if (DOM.adminConsumableModal) DOM.adminConsumableModal.classList.add('hidden');
     renderConsumables();
-    alert(`Barang "${name}" berhasil disimpan.`);
+    window.alertSwal(`Barang "${name}" berhasil disimpan.`);
 }
 
 async function deleteConsumableItem(id, name) {
-    if (confirm(`Apakah Anda yakin ingin menghapus barang "${name}"?`)) {
+    if (await window.confirmAsync(`Apakah Anda yakin ingin menghapus barang "${name}"?`)) {
         await deleteFromDatabase('consumables', id);
         renderConsumables();
-        alert(`Barang "${name}" berhasil dihapus.`);
+        window.alertSwal(`Barang "${name}" berhasil dihapus.`);
     }
 }
 
@@ -1102,7 +1111,7 @@ function openAdminRestockModal() {
     select.innerHTML = '';
 
     if (consumables.length === 0) {
-        alert('Belum ada data barang. Silakan tambah barang baru terlebih dahulu.');
+        window.alertSwal('Belum ada data barang. Silakan tambah barang baru terlebih dahulu.');
         return;
     }
 
@@ -1148,7 +1157,7 @@ async function handleAdminRestockSubmit(e) {
 
     if (DOM.adminRestockModal) DOM.adminRestockModal.classList.add('hidden');
     renderConsumables();
-    alert(`Berhasil melakukan restock ${qty} ${item.unit} untuk "${item.name}"!`);
+    window.alertSwal(`Berhasil melakukan restock ${qty} ${item.unit} untuk "${item.name}"!`);
 }
 
 function applyCmsContent() {
@@ -1277,7 +1286,7 @@ function renderFacilityAdminList(filterText = "") {
         btn.addEventListener('click', async (e) => {
             const idx = parseInt(e.currentTarget.getAttribute('data-idx'));
             const oldName = facilities[idx];
-            const newName = prompt(`Edit nama fasilitas "${oldName}":`, oldName);
+            const newName = await window.promptAsync(`Edit nama fasilitas "${oldName}":`, oldName);
 
             if (newName && newName.trim() !== '' && newName.trim() !== oldName) {
                 const trimmed = newName.trim();
@@ -1286,7 +1295,7 @@ function renderFacilityAdminList(filterText = "") {
 
                 const exists = facilities.some((fac, i) => i !== idx && normalizeFacilityName(fac) === newKey);
                 if (exists) {
-                    alert(`Fasilitas "${trimmed}" sudah ada di daftar!`);
+                    window.alertSwal(`Fasilitas "${trimmed}" sudah ada di daftar!`);
                     return;
                 }
 
@@ -1309,7 +1318,7 @@ function renderFacilityAdminList(filterText = "") {
             const idx = parseInt(e.currentTarget.getAttribute('data-idx'));
             const facName = facilities[idx];
 
-            if (confirm(`Apakah Anda yakin ingin menghapus fasilitas "${facName}"?\n(Titik koordinat denah fasilitas ini juga akan dihapus)`)) {
+            if (await window.confirmAsync(`Apakah Anda yakin ingin menghapus fasilitas "${facName}"?\n(Titik koordinat denah fasilitas ini juga akan dihapus)`)) {
                 facilities.splice(idx, 1);
 
                 const key = normalizeFacilityName(facName);
@@ -1413,7 +1422,7 @@ function renderEvents(filterText = "") {
 
     document.querySelectorAll('.delete-event-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
-            if (confirm("Apakah Anda yakin ingin menghapus jadwal ini?")) {
+            if (await window.confirmAsync("Apakah Anda yakin ingin menghapus jadwal ini?")) {
                 const id = e.currentTarget.getAttribute('data-id');
                 await deleteFromDatabase('events', id);
             }
@@ -1556,7 +1565,7 @@ function renderVehicles(filterText = "") {
 
     DOM.vehiclesGrid.querySelectorAll('.delete-veh-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
-            if (confirm("Apakah Anda yakin ingin menghapus data kendaraan ini?")) {
+            if (await window.confirmAsync("Apakah Anda yakin ingin menghapus data kendaraan ini?")) {
                 const id = e.currentTarget.getAttribute('data-id');
                 await deleteFromDatabase('vehicles', id);
             }
@@ -1592,7 +1601,7 @@ function openVehicleModal(veh = null) {
 function renderComplaints(filterText = "", statusFilter = currentComplaintStatusFilter) {
     // Render visualisasi map denah sekolah
     renderComplaintsMap();
-    
+
     // Render Lapor Cepat (Quick Report Table)
     if (typeof renderQuickReportList === 'function') {
         renderQuickReportList(filterText, statusFilter);
@@ -1608,26 +1617,26 @@ function renderComplaintsMap() {
 
     // Grouping status laporan berdasarkan lokasi
     const statusByLocation = {};
-    
+
     // Urutkan pemilahanSampah agar yang paling baru diproses terakhir
     const sortedReports = [...pemilahanSampah].sort((a, b) => new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0));
-    
+
     sortedReports.forEach(r => {
         if (!r.lokasi) return;
         const normLoc = normalizeFacilityName(r.lokasi);
         if (!statusByLocation[normLoc]) {
             statusByLocation[normLoc] = { orgState: 'neutral', inorgState: 'neutral', pendingOrg: 0, pendingInorg: 0 };
         }
-        
+
         let locState = statusByLocation[normLoc];
-        
+
         if (r.status_organik === 'Sudah') {
             locState.orgState = 'sorted';
         } else if (r.status_organik === 'Belum') {
             locState.orgState = 'unsorted';
             locState.pendingOrg = 1;
         }
-        
+
         if (r.status_anorganik === 'Sudah') {
             locState.inorgState = 'sorted';
         } else if (r.status_anorganik === 'Belum') {
@@ -1645,10 +1654,10 @@ function renderComplaintsMap() {
 
         const originalFacilityName = facilities.find(f => normalizeFacilityName(f) === normKey) || normKey;
         const locData = statusByLocation[normKey] || { pendingOrganic: 0, pendingInorganic: 0 };
-        
+
         let orgState = locData.orgState || 'neutral';
         let inorgState = locData.inorgState || 'neutral';
-        
+
         let isUnsorted = (orgState === 'unsorted' || inorgState === 'unsorted');
         let isNeutral = (orgState === 'neutral' && inorgState === 'neutral');
 
@@ -1656,8 +1665,8 @@ function renderComplaintsMap() {
         let pendingInorg = locData.pendingInorg || 0;
 
         let statusClass = isUnsorted ? 'status-red' : (isNeutral ? 'status-neutral' : 'status-green');
-        let tooltipText = isUnsorted 
-            ? `📍 ${originalFacilityName}\n🔴 Belum Dipilah (Organik: ${pendingOrg}, Anorganik: ${pendingInorg})\nKlik untuk melihat di daftar lapor cepat` 
+        let tooltipText = isUnsorted
+            ? `📍 ${originalFacilityName}\n🔴 Belum Dipilah (Organik: ${pendingOrg}, Anorganik: ${pendingInorg})\nKlik untuk melihat di daftar lapor cepat`
             : (isNeutral ? `📍 ${originalFacilityName}\n⚪ Belum Dicek / Dimonitor` : `📍 ${originalFacilityName}\n🟢 Sudah Terpilah Rapi`);
 
         const box = document.createElement('div');
@@ -1683,7 +1692,7 @@ function renderComplaintsMap() {
 function renderQuickReportList(filterText = "", statusFilter = "all") {
     const tbody = document.getElementById('quickReportTableBody');
     if (!tbody) return;
-    
+
     tbody.innerHTML = '';
 
     let totalRooms = facilities.length;
@@ -1699,23 +1708,27 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
     sortedPemilahan.forEach(r => {
         if (r.lokasi) {
             if (!statusMap[r.lokasi]) {
-                statusMap[r.lokasi] = { orgState: 'neutral', inorgState: 'neutral' };
+                statusMap[r.lokasi] = { orgState: 'neutral', inorgState: 'neutral', catatan: '' };
             }
             if (r.status_organik === 'Sudah') statusMap[r.lokasi].orgState = 'sorted';
             else if (r.status_organik === 'Belum') statusMap[r.lokasi].orgState = 'unsorted';
-            
+
             if (r.status_anorganik === 'Sudah') statusMap[r.lokasi].inorgState = 'sorted';
             else if (r.status_anorganik === 'Belum') statusMap[r.lokasi].inorgState = 'unsorted';
+
+            if (r.catatan) statusMap[r.lokasi].catatan = r.catatan;
         }
     });
 
     allFacs.forEach(fac => {
         let orgState = 'neutral';
         let inorgState = 'neutral';
-        
+        let catatan = '-';
+
         if (statusMap[fac]) {
             orgState = statusMap[fac].orgState;
             inorgState = statusMap[fac].inorgState;
+            catatan = statusMap[fac].catatan || '-';
         }
 
         if (orgState === 'unsorted') pendingOrganicCount++;
@@ -1724,17 +1737,17 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
 
         // Filtering
         if (filterText && !fac.toLowerCase().includes(filterText.toLowerCase())) return;
-        
+
         let isUnsortedAny = (orgState === 'unsorted' || inorgState === 'unsorted');
         if (statusFilter === 'unsorted' && !isUnsortedAny) return;
         if (statusFilter === 'sorted' && isUnsortedAny) return;
 
         const tr = document.createElement('tr');
-        
+
         const tdName = document.createElement('td');
         tdName.setAttribute('data-label', 'Fasilitas');
         tdName.innerHTML = `<i class="fas fa-map-marker-alt" style="color: var(--color-primary-light); margin-right: 6px;"></i> <strong>${fac}</strong>`;
-        
+
         const tdOrg = document.createElement('td');
         tdOrg.setAttribute('data-label', 'Organik');
         tdOrg.classList.add('bg-organic');
@@ -1744,7 +1757,7 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
                 <button type="button" class="waste-toggle-btn btn-unsorted ${orgState === 'unsorted' ? 'active' : ''}" onclick="handleQuickToggleWaste('${fac}', 'organik', 'unsorted')"><span class="dot"></span> <span class="desktop-text">Belum</span><span class="mobile-text">B</span></button>
             </div>
         `;
-        
+
         const tdInorg = document.createElement('td');
         tdInorg.setAttribute('data-label', 'Anorganik');
         tdInorg.classList.add('bg-inorganic');
@@ -1754,20 +1767,22 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
                 <button type="button" class="waste-toggle-btn btn-unsorted ${inorgState === 'unsorted' ? 'active' : ''}" onclick="handleQuickToggleWaste('${fac}', 'anorganik', 'unsorted')"><span class="dot"></span> <span class="desktop-text">Belum</span><span class="mobile-text">B</span></button>
             </div>
         `;
-        
+
         const tdAction = document.createElement('td');
-        tdAction.setAttribute('data-label', 'Lapor Detail');
+        tdAction.setAttribute('data-label', 'Keterangan');
+        let displayCatatan = catatan === '-' ? 'Belum ada keterangan' : catatan;
         tdAction.innerHTML = `
-            <button type="button" class="btn-detail-quick" onclick="openDetailComplaintForFacility('${fac}')">
-                <i class="fas fa-edit"></i> Detail
-            </button>
+            <div style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.85rem; color: var(--color-text-muted); padding: 4px; border: 1px dashed transparent; border-radius: 4px; transition: all 0.2s;" onmouseover="this.style.border='1px dashed var(--color-primary-light)'" onmouseout="this.style.border='1px dashed transparent'" onclick="window.editKeterangan('${fac}')" title="Klik untuk mengubah keterangan">
+                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${displayCatatan}</span>
+                <i class="fas fa-edit" style="color: var(--color-primary-light);"></i>
+            </div>
         `;
 
         tr.appendChild(tdName);
         tr.appendChild(tdOrg);
         tr.appendChild(tdInorg);
         tr.appendChild(tdAction);
-        
+
         tbody.appendChild(tr);
     });
 
@@ -1782,7 +1797,7 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
     if (document.getElementById('statPendingInorganic')) document.getElementById('statPendingInorganic').textContent = pendingInorganicCount;
 }
 
-window.getQuickReportDate = function() {
+window.getQuickReportDate = function () {
     const dp = document.getElementById('quickReportDate');
     if (dp && dp.value) {
         const d = new Date(dp.value);
@@ -1792,9 +1807,9 @@ window.getQuickReportDate = function() {
     return new Date().toISOString();
 };
 
-window.handleQuickToggleWaste = async function(facilityName, wasteType, targetStatus) {
+window.handleQuickToggleWaste = async function (facilityName, wasteType, targetStatus) {
     if (!isAdmin && !isOperator) {
-        alert('Silakan login terlebih dahulu untuk memperbarui status pemilahan sampah.');
+        window.alertSwal('Silakan login terlebih dahulu untuk memperbarui status pemilahan sampah.');
         return;
     }
 
@@ -1806,10 +1821,10 @@ window.handleQuickToggleWaste = async function(facilityName, wasteType, targetSt
     let report;
 
     if (existingReportIdx >= 0) {
-        report = { ...pemilahanSampah[existingReportIdx] };
+        report = pemilahanSampah[existingReportIdx];
     } else {
         report = {
-            id: Date.now().toString(),
+            id: Date.now().toString() + '_' + Math.random().toString(36).substr(2, 5),
             tanggal: actionDate,
             lokasi: facilityName,
             status_organik: '',
@@ -1818,6 +1833,7 @@ window.handleQuickToggleWaste = async function(facilityName, wasteType, targetSt
             catatan: 'Update Cepat',
             updatedAt: new Date().toISOString()
         };
+        pemilahanSampah.push(report);
     }
 
     let targetValue = targetStatus === 'sorted' ? 'Sudah' : 'Belum';
@@ -1836,11 +1852,113 @@ window.handleQuickToggleWaste = async function(facilityName, wasteType, targetSt
     report.petugas = petugasName;
     report.updatedAt = new Date().toISOString();
 
-    // Simpan ke GAS dengan koleksi yang benar (pemilahanSampah)
-    await saveToDatabase('pemilahanSampah', report.id, report, existingReportIdx >= 0);
+    // Cek apakah record menjadi kosong total (undo semuanya)
+    const isOrganikEmpty = !report.status_organik;
+    const isAnorganikEmpty = !report.status_anorganik;
+    const isCatatanEmpty = (!report.catatan || report.catatan === 'Update Cepat' || report.catatan === '-');
+
+    if (isOrganikEmpty && isAnorganikEmpty && isCatatanEmpty) {
+        // Hapus dari array lokal
+        pemilahanSampah = pemilahanSampah.filter(r => r.id !== report.id);
+        localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
+        
+        // Hapus dari database jika sebelumnya sudah ada
+        if (existingReportIdx >= 0) {
+            deleteFromDatabase('pemilahanSampah', report.id).catch(console.error);
+        }
+    } else {
+        // Simpan ke array dan render ulang UI lokal (optimistic update)
+        localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
+        
+        // Simpan ke Firebase
+        saveToDatabase('pemilahanSampah', report.id, report, existingReportIdx >= 0).catch(console.error);
+    }
+    
+    if (typeof renderComplaints === 'function') {
+        renderComplaints();
+    }
 }
 
-window.openDetailComplaintForFacility = function(facilityName) {
+window.editKeterangan = async function (facilityName) {
+    if (!isAdmin && !isOperator) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Akses Ditolak',
+            text: 'Silakan login terlebih dahulu untuk memperbarui keterangan pemilahan sampah.'
+        });
+        return;
+    }
+
+    let existingReportIdx = pemilahanSampah.findIndex(r => r.lokasi === facilityName);
+    let currentCatatan = existingReportIdx >= 0 ? (pemilahanSampah[existingReportIdx].catatan || '') : '';
+    if (currentCatatan === 'Update Cepat' || currentCatatan === '-') currentCatatan = '';
+
+    const { value: newCatatan } = await Swal.fire({
+        title: `Keterangan untuk ${facilityName}`,
+        input: 'textarea',
+        inputLabel: 'Rincian Deskripsi Laporan',
+        inputValue: currentCatatan,
+        inputPlaceholder: 'Tuliskan keterangan kondisi, misal: Tempat sampah penuh...',
+        showCancelButton: true,
+        confirmButtonText: 'Simpan',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: 'var(--color-primary)',
+        cancelButtonColor: '#6b7280'
+    });
+
+    if (newCatatan !== undefined) {
+        const actionDate = getQuickReportDate();
+        let petugasName = isAdmin ? 'Admin' : (isOperator ? 'Operator' : 'Sistem');
+        let report;
+        let isUpdate = existingReportIdx >= 0;
+
+        if (isUpdate) {
+            report = pemilahanSampah[existingReportIdx];
+        } else {
+            report = {
+                id: Date.now().toString() + '_' + Math.random().toString(36).substr(2, 5),
+                tanggal: actionDate,
+                lokasi: facilityName,
+                status_organik: '',
+                status_anorganik: '',
+                petugas: petugasName
+            };
+            pemilahanSampah.push(report);
+        }
+
+        report.catatan = newCatatan;
+        report.updatedAt = new Date().toISOString();
+
+        const isOrganikEmpty = !report.status_organik;
+        const isAnorganikEmpty = !report.status_anorganik;
+        const isCatatanEmpty = (!report.catatan || report.catatan === 'Update Cepat' || report.catatan === '-');
+
+        if (isOrganikEmpty && isAnorganikEmpty && isCatatanEmpty) {
+            pemilahanSampah = pemilahanSampah.filter(r => r.id !== report.id);
+            localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
+            if (isUpdate) {
+                deleteFromDatabase('pemilahanSampah', report.id).catch(console.error);
+            }
+        } else {
+            localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
+            saveToDatabase('pemilahanSampah', report.id, report, isUpdate).catch(console.error);
+        }
+
+        if (typeof renderComplaints === 'function') {
+            renderComplaints();
+        }
+
+        Swal.fire({
+            icon: 'success',
+            title: 'Berhasil',
+            text: 'Keterangan berhasil disimpan!',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    }
+}
+
+window.openDetailComplaintForFacility = function (facilityName) {
     if (!isAdmin && !isOperator) {
         Swal.fire({
             icon: 'warning',
@@ -1860,15 +1978,15 @@ window.openDetailComplaintForFacility = function(facilityName) {
     }, 100);
 };
 
-window.markAllSorted = async function() {
+window.markAllSorted = async function () {
     if (!isAdmin && !isOperator) {
-        alert('Silakan login terlebih dahulu untuk memperbarui status pemilahan sampah secara massal.');
+        window.alertSwal('Silakan login terlebih dahulu untuk memperbarui status pemilahan sampah secara massal.');
         return;
     }
-    if (confirm("Apakah Anda yakin ingin menandai SELURUH fasilitas sebagai 'Sudah Terpilah Rapi'?")) {
+    if (await window.confirmAsync("Apakah Anda yakin ingin menandai SELURUH fasilitas sebagai 'Sudah Terpilah Rapi'?")) {
         const actionDate = getQuickReportDate();
         let petugasName = isAdmin ? 'Admin' : (isOperator ? 'Operator' : 'Sistem');
-        
+
         facilities.forEach(fac => {
             let idx = pemilahanSampah.findIndex(r => r.lokasi === fac);
             let report;
@@ -1887,23 +2005,23 @@ window.markAllSorted = async function() {
             report.petugas = petugasName;
             report.catatan = 'Tandai Semua Bersih';
             report.updatedAt = new Date().toISOString();
-            
+
             // Fire and forget saves to avoid blocking
             saveToDatabase('pemilahanSampah', report.id, report, idx >= 0).catch(console.error);
         });
 
         localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
         renderComplaints();
-        alert("Seluruh ruangan berhasil ditandai sudah dipilah rapi!");
+        window.alertSwal("Seluruh ruangan berhasil ditandai sudah dipilah rapi!");
     }
 };
 
-window.markAllUnsorted = async function() {
+window.markAllUnsorted = async function () {
     if (!isAdmin && !isOperator) {
-        alert('Silakan login terlebih dahulu untuk memperbarui status pemilahan sampah secara massal.');
+        window.alertSwal('Silakan login terlebih dahulu untuk memperbarui status pemilahan sampah secara massal.');
         return;
     }
-    if (confirm("Apakah Anda yakin ingin menandai SELURUH fasilitas sebagai 'Belum Dipilah'?")) {
+    if (await window.confirmAsync("Apakah Anda yakin ingin menandai SELURUH fasilitas sebagai 'Belum Dipilah'?")) {
         const actionDate = getQuickReportDate();
         let petugasName = isAdmin ? 'Admin' : (isOperator ? 'Operator' : 'Sistem');
 
@@ -1925,34 +2043,34 @@ window.markAllUnsorted = async function() {
             report.petugas = petugasName;
             report.catatan = 'Tandai Semua Belum Dipilah';
             report.updatedAt = new Date().toISOString();
-            
+
             saveToDatabase('pemilahanSampah', report.id, report, idx >= 0).catch(console.error);
         });
 
         localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
         renderComplaints();
-        alert("Seluruh ruangan berhasil ditandai belum dipilah!");
+        window.alertSwal("Seluruh ruangan berhasil ditandai belum dipilah!");
     }
 };
 
-window.clearAllStatus = async function() {
+window.clearAllStatus = async function () {
     if (!isAdmin && !isOperator) {
-        alert('Silakan login terlebih dahulu untuk membersihkan status secara massal.');
+        window.alertSwal('Silakan login terlebih dahulu untuk membersihkan status secara massal.');
         return;
     }
-    if (confirm("Perhatian! Aksi ini akan membersihkan semua indikator pemilahan sampah hari ini.\n\nApakah Anda yakin ingin menghapus/mereset status untuk seluruh fasilitas?")) {
+    if (await window.confirmAsync("Perhatian! Aksi ini akan membersihkan semua indikator pemilahan sampah hari ini.\n\nApakah Anda yakin ingin menghapus/mereset status untuk seluruh fasilitas?")) {
         // Hapus semua data dari pemilahanSampah (atau buat kosong)
         const oldReports = [...pemilahanSampah];
         pemilahanSampah = [];
         localStorage.setItem('sardas_reports', '[]');
         renderComplaints();
-        
+
         // Hapus dari database (fire and forget)
         oldReports.forEach(r => {
             deleteFromDatabase('pemilahanSampah', r.id).catch(console.error);
         });
-        
-        alert("Status pemilahan semua fasilitas telah direset (Netral).");
+
+        window.alertSwal("Status pemilahan semua fasilitas telah direset (Netral).");
     }
 };
 
@@ -1967,7 +2085,7 @@ function openPublicComplaintEdit(comp) {
     document.getElementById('complaintLocation').value = comp.location || '';
     document.getElementById('complaintCategory').value = comp.category || 'Lainnya';
     document.getElementById('complaintDesc').value = comp.desc || '';
-    
+
     const imgUrl = comp.imageUrl || comp.image || '';
     const urlInput = document.getElementById('complaintImageUrl');
     const prevContainer = document.getElementById('complaintImagePreview');
@@ -2086,6 +2204,7 @@ function updateAccessControlUI() {
     if (isAdmin) {
         sessionStorage.setItem('sisarna_admin', 'true');
         document.body.classList.add('admin-mode');
+        if (DOM.headerReportBtn) DOM.headerReportBtn.classList.remove('hidden');
         if (DOM.adminActions) DOM.adminActions.classList.remove('hidden');
         if (DOM.adminVehicleActions) DOM.adminVehicleActions.classList.remove('hidden');
         if (DOM.adminConsumableActions) DOM.adminConsumableActions.classList.remove('hidden');
@@ -2094,6 +2213,7 @@ function updateAccessControlUI() {
     } else {
         sessionStorage.removeItem('sisarna_admin');
         document.body.classList.remove('admin-mode');
+        if (DOM.headerReportBtn) DOM.headerReportBtn.classList.add('hidden');
         if (DOM.adminActions) DOM.adminActions.classList.add('hidden');
         if (DOM.adminVehicleActions) DOM.adminVehicleActions.classList.add('hidden');
         if (DOM.adminConsumableActions) DOM.adminConsumableActions.classList.add('hidden');
@@ -2226,7 +2346,7 @@ async function saveKopSuratConfig() {
     localStorage.setItem('sardas_kop_surat', JSON.stringify(kopSuratConfig));
     renderKopSuratUI();
     await saveToDatabase('settings', 'kopSurat', kopSuratConfig);
-    alert('Kop Surat & Penandatangan berhasil diperbarui dan tersimpan permanen!');
+    window.alertSwal('Kop Surat & Penandatangan berhasil diperbarui dan tersimpan permanen!');
     const editContainer = document.getElementById('editKopContainer');
     if (editContainer) editContainer.classList.add('hidden');
 }
@@ -2435,7 +2555,7 @@ function renderReportTable(type) {
         const sDate = document.getElementById('reportStartDate');
         const eDate = document.getElementById('reportEndDate');
         const catFilter = document.getElementById('reportCategorySelect');
-        
+
         let start = null;
         if (sDate && sDate.value) {
             start = new Date(sDate.value + 'T00:00:00');
@@ -2458,12 +2578,19 @@ function renderReportTable(type) {
                     if (end && cpDate > end) matchDate = false;
                 }
             }
-            
+
             let matchCat = true;
             if (cat !== 'all') {
                 if (cat === 'organik' && cp.status_organik === '') matchCat = false;
                 if (cat === 'anorganik' && cp.status_anorganik === '') matchCat = false;
             }
+            
+            // Filter out junk data (totally empty records)
+            const isOrganikEmpty = !cp.status_organik;
+            const isAnorganikEmpty = !cp.status_anorganik;
+            const isCatatanEmpty = (!cp.catatan || cp.catatan === 'Update Cepat' || cp.catatan === '-');
+            if (isOrganikEmpty && isAnorganikEmpty && isCatatanEmpty) return false;
+
             return matchDate && matchCat;
         });
 
@@ -2490,14 +2617,14 @@ function renderReportTable(type) {
         filteredReports.forEach((cp, idx) => {
             const orgText = cp.status_organik || '-';
             const anorgText = cp.status_anorganik || '-';
-            
+
             body.innerHTML += `
                 <tr>
                     <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">${idx + 1}</td>
                     <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">${cp.tanggal || '-'}</td>
                     <td style="padding: 8px 10px; border: 1px solid #cbd5e1; font-weight: 600;">${cp.lokasi || '-'}</td>
-                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">${orgText === 'Sudah' ? '<span style="color:#16a34a;font-weight:bold;">Selesai</span>' : (orgText === 'Belum' ? '<span style="color:#dc2626;font-weight:bold;">Pending</span>' : '-')}</td>
-                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">${anorgText === 'Sudah' ? '<span style="color:#16a34a;font-weight:bold;">Selesai</span>' : (anorgText === 'Belum' ? '<span style="color:#dc2626;font-weight:bold;">Pending</span>' : '-')}</td>
+                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">${orgText === 'Sudah' ? '<span style="color:#16a34a;font-weight:bold;">Sudah</span>' : (orgText === 'Belum' ? '<span style="color:#dc2626;font-weight:bold;">Belum</span>' : '-')}</td>
+                    <td style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center;">${anorgText === 'Sudah' ? '<span style="color:#16a34a;font-weight:bold;">Sudah</span>' : (anorgText === 'Belum' ? '<span style="color:#dc2626;font-weight:bold;">Belum</span>' : '-')}</td>
                     <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">${cp.petugas || '-'}</td>
                     <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">${cp.catatan || '-'}</td>
                 </tr>
@@ -2567,31 +2694,31 @@ function exportReportToCSV(type) {
     document.body.removeChild(link);
 }
 
-window.printReport = function() {
+window.printReport = function () {
     window.print();
 };
 
-window.exportReportToExcel = function() {
+window.exportReportToExcel = function () {
     const tableHeader = document.getElementById('reportTableHeader');
     const tableBody = document.getElementById('reportTableBody');
     if (!tableHeader || !tableBody) return;
 
     let wb = XLSX.utils.book_new();
-    
+
     // Create an array of arrays representing the sheet
     let ws_data = [];
-    
+
     // Add title rows
     const typeSel = document.getElementById('reportTypeSelect');
     const activeType = typeSel ? typeSel.options[typeSel.selectedIndex].text : 'Laporan Rekapitulasi';
     ws_data.push([activeType]);
     ws_data.push([]);
-    
+
     // Add Headers
     let headerRow = [];
     tableHeader.querySelectorAll('th').forEach(th => headerRow.push(th.innerText));
     ws_data.push(headerRow);
-    
+
     // Add Body Rows
     tableBody.querySelectorAll('tr').forEach(tr => {
         let row = [];
@@ -2600,15 +2727,15 @@ window.exportReportToExcel = function() {
     });
 
     let ws = XLSX.utils.aoa_to_sheet(ws_data);
-    
+
     // Optionally auto-size columns a bit
-    let wscols = headerRow.map(h => ({wch: Math.max(h.length, 15)}));
+    let wscols = headerRow.map(h => ({ wch: Math.max(h.length, 15) }));
     ws['!cols'] = wscols;
 
     XLSX.utils.book_append_sheet(wb, ws, "Rekap Laporan");
-    
+
     const d = new Date();
-    const dateStr = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+    const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
     XLSX.writeFile(wb, `Laporan_SAKOLA_${dateStr}.xlsx`);
 };
 
@@ -2680,7 +2807,7 @@ function setupEventListeners() {
             if (formIdInput) formIdInput.value = '';
             const titleEl = document.getElementById('complaintModalTitle');
             if (titleEl) titleEl.textContent = '📢 Buat Laporan Detail';
-            
+
             const imgInput = document.getElementById('complaintImageInput');
             const urlInput = document.getElementById('complaintImageUrl');
             const prevContainer = document.getElementById('complaintImagePreview');
@@ -2719,64 +2846,64 @@ function setupEventListeners() {
         });
     }
 
-function setupImageUploadHandler() {
-    const fileInput = document.getElementById('complaintImageInput');
-    const urlInput = document.getElementById('complaintImageUrl');
-    const previewContainer = document.getElementById('complaintImagePreview');
-    const previewImg = document.getElementById('complaintPreviewImg');
-    const removeBtn = document.getElementById('removeComplaintImgBtn');
+    function setupImageUploadHandler() {
+        const fileInput = document.getElementById('complaintImageInput');
+        const urlInput = document.getElementById('complaintImageUrl');
+        const previewContainer = document.getElementById('complaintImagePreview');
+        const previewImg = document.getElementById('complaintPreviewImg');
+        const removeBtn = document.getElementById('removeComplaintImgBtn');
 
-    if (fileInput) {
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+        if (fileInput) {
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
 
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width;
-                    let height = img.height;
-                    const MAX_SIZE = 500;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        const MAX_SIZE = 500;
 
-                    if (width > height) {
-                        if (width > MAX_SIZE) {
-                            height *= MAX_SIZE / width;
-                            width = MAX_SIZE;
+                        if (width > height) {
+                            if (width > MAX_SIZE) {
+                                height *= MAX_SIZE / width;
+                                width = MAX_SIZE;
+                            }
+                        } else {
+                            if (height > MAX_SIZE) {
+                                width *= MAX_SIZE / height;
+                                height = MAX_SIZE;
+                            }
                         }
-                    } else {
-                        if (height > MAX_SIZE) {
-                            width *= MAX_SIZE / height;
-                            height = MAX_SIZE;
-                        }
-                    }
 
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
 
-                    const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
-                    if (urlInput) urlInput.value = compressedBase64;
-                    if (previewImg) previewImg.src = compressedBase64;
-                    if (previewContainer) previewContainer.classList.remove('hidden');
+                        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
+                        if (urlInput) urlInput.value = compressedBase64;
+                        if (previewImg) previewImg.src = compressedBase64;
+                        if (previewContainer) previewContainer.classList.remove('hidden');
+                    };
+                    img.src = event.target.result;
                 };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-        });
-    }
+                reader.readAsDataURL(file);
+            });
+        }
 
-    if (removeBtn) {
-        removeBtn.addEventListener('click', () => {
-            if (fileInput) fileInput.value = '';
-            if (urlInput) urlInput.value = '';
-            if (previewImg) previewImg.src = '';
-            if (previewContainer) previewContainer.classList.add('hidden');
-        });
+        if (removeBtn) {
+            removeBtn.addEventListener('click', () => {
+                if (fileInput) fileInput.value = '';
+                if (urlInput) urlInput.value = '';
+                if (previewImg) previewImg.src = '';
+                if (previewContainer) previewContainer.classList.add('hidden');
+            });
+        }
     }
-}
 
     setupImageUploadHandler();
 
@@ -2816,10 +2943,10 @@ function setupImageUploadHandler() {
             try {
                 if (editId) {
                     await saveToDatabase('complaints', editId, compData, true);
-                    alert("Laporan pengaduan Anda berhasil diperbarui!");
+                    window.alertSwal("Laporan pengaduan Anda berhasil diperbarui!");
                 } else {
                     await saveToDatabase('complaints', null, compData, false);
-                    alert("Laporan pengaduan Anda berhasil dikirim! Tim Sarpras akan segera memverifikasi dan menindaklanjuti laporan Anda.");
+                    window.alertSwal("Laporan pengaduan Anda berhasil dikirim! Tim Sarpras akan segera memverifikasi dan menindaklanjuti laporan Anda.");
                 }
 
                 // Reset Form & Input Foto
@@ -2833,7 +2960,7 @@ function setupImageUploadHandler() {
                 if (urlInput) urlInput.value = '';
                 if (prevImg) prevImg.src = '';
                 if (prevContainer) prevContainer.classList.add('hidden');
-                
+
                 // Tutup Modal
                 DOM.complaintModal.classList.add('hidden');
 
@@ -2857,7 +2984,7 @@ function setupImageUploadHandler() {
                 }
             } catch (err) {
                 console.error(err);
-                alert("Gagal menyimpan laporan pengaduan.");
+                window.alertSwal("Gagal menyimpan laporan pengaduan.");
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Kirim Laporan';
@@ -2896,7 +3023,7 @@ function setupImageUploadHandler() {
                 DOM.complaintAdminModal.classList.add('hidden');
             } catch (err) {
                 console.error(err);
-                alert("Gagal memperbarui status pengaduan.");
+                window.alertSwal("Gagal memperbarui status pengaduan.");
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Simpan Status';
@@ -2958,7 +3085,7 @@ function setupImageUploadHandler() {
                 DOM.vehicleModal.classList.add('hidden');
             } catch (err) {
                 console.error(err);
-                alert("Gagal menyimpan data kendaraan.");
+                window.alertSwal("Gagal menyimpan data kendaraan.");
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Simpan Kendaraan';
@@ -3198,7 +3325,7 @@ function setupImageUploadHandler() {
         isAdmin = false;
         isOperator = false;
         updateAccessControlUI();
-        alert("Anda telah keluar dari akun. Tab Barang Habis Pakai dan fitur pengelola telah disembunyikan.");
+        window.alertSwal("Anda telah keluar dari akun. Tab Barang Habis Pakai dan fitur pengelola telah disembunyikan.");
     });
 
     DOM.addEventBtn.addEventListener('click', () => {
@@ -3305,7 +3432,7 @@ function setupImageUploadHandler() {
                 DOM.eventModal.classList.add('hidden');
             } catch (error) {
                 console.error(error);
-                alert("Gagal menyimpan data.");
+                window.alertSwal("Gagal menyimpan data.");
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Simpan';
@@ -3349,7 +3476,7 @@ function setupImageUploadHandler() {
     DOM.importFacilityBtn.addEventListener('click', () => {
         const file = DOM.csvFacilityInput.files[0];
         if (!file) {
-            alert('Silakan pilih file CSV terlebih dahulu.');
+            window.alertSwal('Silakan pilih file CSV terlebih dahulu.');
             return;
         }
 
@@ -3374,9 +3501,9 @@ function setupImageUploadHandler() {
             if (addedCount > 0) {
                 await saveToDatabase('settings', 'facilities', { list: facilities });
                 renderFacilities();
-                alert(`Berhasil mengimpor ${addedCount} fasilitas baru!`);
+                window.alertSwal(`Berhasil mengimpor ${addedCount} fasilitas baru!`);
             } else {
-                alert('Tidak ada fasilitas baru yang ditambahkan (data kosong/duplikat).');
+                window.alertSwal('Tidak ada fasilitas baru yang ditambahkan (data kosong/duplikat).');
             }
             DOM.csvFacilityInput.value = '';
         };
@@ -3397,9 +3524,9 @@ function setupImageUploadHandler() {
                 await saveToDatabase('settings', 'facilities', { list: facilities });
                 renderFacilities();
                 openMapEditorForFacility(newFac);
-                alert(`Fasilitas "${newFac}" berhasil ditambahkan! Silakan atur letak kotaknya di peta.`);
+                window.alertSwal(`Fasilitas "${newFac}" berhasil ditambahkan! Silakan atur letak kotaknya di peta.`);
             } else {
-                alert(`Fasilitas "${newFac}" sudah ada di dalam daftar.`);
+                window.alertSwal(`Fasilitas "${newFac}" sudah ada di dalam daftar.`);
                 openMapEditorForFacility(newFac);
             }
         });
@@ -3420,9 +3547,9 @@ function setupImageUploadHandler() {
             if (removedKeys.length > 0) {
                 await saveToDatabase('settings', 'mapCoordinates', { coords: mapCoordinates });
                 populateMapEditorFacilitySelect("");
-                alert(`Berhasil membersihkan ${removedKeys.length} kotak koordinat lama (${removedKeys.join(', ')})!`);
+                window.alertSwal(`Berhasil membersihkan ${removedKeys.length} kotak koordinat lama (${removedKeys.join(', ')})!`);
             } else {
-                alert("Semua kotak koordinat di denah sudah sesuai dengan fasilitas aktif (tidak ada data lama).");
+                window.alertSwal("Semua kotak koordinat di denah sudah sesuai dengan fasilitas aktif (tidak ada data lama).");
             }
         });
     }
@@ -3685,7 +3812,7 @@ window.addEventListener('touchend', () => {
 DOM.saveMapCoordsBtn.addEventListener('click', async () => {
     const fac = DOM.editorFacilitySelect.value;
     if (!fac) {
-        window.alert("Pilih fasilitas terlebih dahulu.");
+        window.window.alertSwal("Pilih fasilitas terlebih dahulu.");
         return;
     }
 
@@ -3719,7 +3846,7 @@ DOM.deleteMapCoordsBtn.addEventListener('click', async () => {
     const fac = DOM.editorFacilitySelect.value;
     if (!fac) return;
 
-    if (!confirm(`Apakah Anda yakin ingin menghapus koordinat denah untuk: "${fac}"?`)) {
+    if (!await window.confirmAsync(`Apakah Anda yakin ingin menghapus koordinat denah untuk: "${fac}"?`)) {
         return;
     }
 
@@ -3729,7 +3856,7 @@ DOM.deleteMapCoordsBtn.addEventListener('click', async () => {
 
     await saveToDatabase('settings', 'mapCoordinates', { coords: mapCoordinates });
 
-    alert(`Koordinat denah untuk "${fac}" berhasil dihapus.`);
+    window.alertSwal(`Koordinat denah untuk "${fac}" berhasil dihapus.`);
     populateMapEditorFacilitySelect("");
     renderFacilities();
 });
@@ -3778,7 +3905,7 @@ async function loadGASData() {
             Object.entries(data.settings).forEach(([key, val]) => {
                 try {
                     localStorage.setItem('sardas_' + key, typeof val === 'object' ? JSON.stringify(val) : String(val));
-                } catch (_) {}
+                } catch (_) { }
             });
         }
 
@@ -3897,13 +4024,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const mgmpSelect = document.getElementById('mgmp-select');
 
     if (fileInput) {
-        fileInput.addEventListener('change', function(e) {
+        fileInput.addEventListener('change', function (e) {
             if (this.files && this.files[0]) {
                 const file = this.files[0];
                 if (file.type.startsWith('video/')) {
                     handleVideoSelected(file);
                 } else {
-                    alert('Mohon upload file video (MP4, MOV, MKV)');
+                    window.alertSwal('Mohon upload file video (MP4, MOV, MKV)');
                 }
             }
         });
@@ -3913,7 +4040,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dropZone.style.display = 'none';
         analyzerPanel.style.display = 'block';
         analyzerPanel.classList.remove('hidden');
-        
+
         statusBadge.textContent = 'Menganalisis...';
         statusBadge.className = 'status-badge warning';
         submitBtn.disabled = true;
@@ -3923,11 +4050,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const fileURL = URL.createObjectURL(file);
         videoPreview.src = fileURL;
 
-        videoPreview.onloadedmetadata = function() {
+        videoPreview.onloadedmetadata = function () {
             const duration = Math.floor(videoPreview.duration);
             const minutes = Math.floor(duration / 60);
             const seconds = duration % 60;
-            
+
             durationVal.textContent = minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
             secondsVal.textContent = duration;
 
@@ -3938,7 +4065,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     statusBadge.className = 'status-badge success';
                     statusBadge.style.background = '#d4edda';
                     statusBadge.style.color = '#155724';
-                    
+
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'KIRIM LAPORAN PEPELING';
                     submitBtn.style.background = '#1a5c28';
@@ -3957,12 +4084,12 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.addEventListener('click', () => {
             const mgmp = mgmpSelect.value;
             if (!mgmp) {
-                alert('Silakan pilih Forum MGMP Pendamping terlebih dahulu!');
+                window.alertSwal('Silakan pilih Forum MGMP Pendamping terlebih dahulu!');
                 return;
             }
 
-            alert('Laporan berhasil dikirim! Menunggu validasi admin.');
-            
+            window.alertSwal('Laporan berhasil dikirim! Menunggu validasi admin.');
+
             // Show star logic
             const starId = 'star-' + mgmp;
             const starEl = document.getElementById(starId);
@@ -3975,19 +4102,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 // Fungsi untuk membuka mini-modal aksi pada peta
-window.openMapActionModal = function(facilityName) {
+window.openMapActionModal = function (facilityName) {
     const modal = document.getElementById('mapActionModal');
     const title = document.getElementById('mapActionTitle');
     const orgGroup = document.getElementById('mapActionOrganicGroup');
     const inorgGroup = document.getElementById('mapActionInorganicGroup');
-    
-    if(!modal || !title || !orgGroup || !inorgGroup) return;
+
+    if (!modal || !title || !orgGroup || !inorgGroup) return;
 
     title.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${facilityName}`;
 
     let isOrgUnsorted = false;
     let isInorgUnsorted = false;
-    
+
     complaints.forEach(c => {
         if (c.location === facilityName && (c.status || 'Pending') === 'Pending') {
             const cat = (c.category || '').toLowerCase();
@@ -3995,7 +4122,7 @@ window.openMapActionModal = function(facilityName) {
                 isOrgUnsorted = true;
             } else if (cat.includes('anorganik')) {
                 isInorgUnsorted = true;
-                if(cat.includes('campur') || cat.includes('organik & anorganik')) {
+                if (cat.includes('campur') || cat.includes('organik & anorganik')) {
                     isOrgUnsorted = true;
                 }
             } else if (cat.includes('penuh') || cat === 'pemilahan sampah' || cat.includes('lainnya')) {
@@ -4018,7 +4145,7 @@ window.openMapActionModal = function(facilityName) {
     modal.classList.remove('hidden');
 };
 
-window.handleMapActionToggle = async function(facilityName, wasteType, targetStatus) {
+window.handleMapActionToggle = async function (facilityName, wasteType, targetStatus) {
     if (typeof handleQuickToggleWaste === 'function') {
         await handleQuickToggleWaste(facilityName, wasteType, targetStatus);
     }
@@ -4045,7 +4172,7 @@ setTimeout(() => {
             const filterValue = e.target.value;
             const activeFilter = document.querySelector('.quick-report-filter-pills .pill-btn.active');
             const statusFilter = activeFilter ? activeFilter.getAttribute('data-quick-filter') : 'all';
-            
+
             if (typeof renderQuickReportList === 'function') {
                 renderQuickReportList(filterValue, statusFilter);
             }
@@ -4057,10 +4184,10 @@ setTimeout(() => {
             btn.addEventListener('click', (e) => {
                 quickFilterBtns.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                
+
                 const statusFilter = btn.getAttribute('data-quick-filter');
                 const filterValue = quickReportSearchInput ? quickReportSearchInput.value : '';
-                
+
                 if (typeof renderQuickReportList === 'function') {
                     renderQuickReportList(filterValue, statusFilter);
                 }
@@ -4084,7 +4211,7 @@ setTimeout(() => {
             }
         });
     }
-    
+
     const clearAllStatusBtn = document.getElementById('clearAllStatusBtn');
     if (clearAllStatusBtn) {
         clearAllStatusBtn.addEventListener('click', () => {
@@ -4094,3 +4221,4 @@ setTimeout(() => {
         });
     }
 }, 1000);
+

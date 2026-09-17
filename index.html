@@ -33,13 +33,17 @@
                         onerror="this.outerHTML='<i class=\'fas fa-school logo-icon\'></i>';">
                     <div>
                         <!-- CMS Editable Text -->
-                        <h1 id="cms-header-title" class="cms-editable" data-cms-key="headerTitle">SAKOLA - SMAN 2 CIAMIS</h1>
-                        <p id="cms-header-subtitle" class="cms-editable" data-cms-key="headerSubtitle">Sistem Analisis Kendali Orientasi Lingkungan Adiwiyata</p>
+                        <h1 id="cms-header-title" class="cms-editable" data-cms-key="headerTitle">SAKOLA - SMAN 2 CIAMIS
+                        </h1>
+                        <p id="cms-header-subtitle" class="cms-editable" data-cms-key="headerSubtitle">Sistem Analisis
+                            Kendali Orientasi Lingkungan Adiwiyata</p>
                     </div>
                 </div>
                 <!-- Sync Indicator + DB Settings -->
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <div id="gasSyncIndicator" class="sync-indicator sync-idle" title="Status Database" onclick="if(typeof gasConfig !== 'undefined' && window.isAdmin) gasConfig.renderSettingsPanel()" style="cursor:pointer;">
+                    <div id="gasSyncIndicator" class="sync-indicator sync-idle" title="Status Database"
+                        onclick="if(typeof gasConfig !== 'undefined' && window.isAdmin) gasConfig.renderSettingsPanel()"
+                        style="display:none;">
                         <span class="sync-dot"></span>
                         <span class="sync-text">Belum Terhubung</span>
                     </div>
@@ -47,9 +51,15 @@
                         style="padding: 6px 14px; gap: 6px; display: flex; align-items: center; font-size: 0.85rem; font-weight: 600; border-radius: 8px;">
                         <i class="fas fa-lock" style="color: var(--color-primary);"></i> <span>Login</span>
                     </button>
+                    <button id="headerReportBtn" class="btn btn-primary hidden" onclick="openReportModal()"
+                        title="Rekapitulasi & Laporan"
+                        style="padding: 6px 14px; gap: 6px; display: flex; align-items: center; font-size: 0.85rem; font-weight: 600; border-radius: 8px;">
+                        <i class="fas fa-file-alt"></i> <span class="hide-on-mobile">Rekapitulasi</span>
+                    </button>
                     <button id="adminLogoutBtn" class="btn btn-secondary glass hidden" title="Keluar / Logout"
                         style="padding: 6px 14px; gap: 6px; display: flex; align-items: center; font-size: 0.85rem; font-weight: 600; border-radius: 8px;">
-                        <i class="fas fa-lock-open" style="color: #e11d48;"></i> <span id="adminStatusText">Keluar</span>
+                        <i class="fas fa-lock-open" style="color: #e11d48;"></i> <span
+                            id="adminStatusText">Keluar</span>
                     </button>
                 </div>
             </div>
@@ -94,52 +104,27 @@
                 </div>
             </section>
 
-            <!-- Section 2: Modul Kendaraan Operasional -->
-            <section id="vehiclesSection" class="hidden">
-                <div class="action-bar">
-                    <div class="search-box glass">
-                        <i class="fas fa-search"></i>
-                        <input type="search" id="vehicleSearchInput" name="search_query_vehicle" autocomplete="off"
-                            autocorrect="off" spellcheck="false"
-                            placeholder="Cari nama kendaraan, plat nomor, atau jenis...">
-                    </div>
 
-                    <div id="adminVehicleActions" class="admin-actions hidden">
-                        <button class="btn btn-primary" id="addVehicleBtn"><i class="fas fa-plus"></i> Tambah
-                            Kendaraan</button>
-                    </div>
-                </div>
-
-                <!-- Alert Banner Peringatan Pajak & Ganti Oli -->
-                <div id="vehicleAlertBanner" class="alert-banner-box"></div>
-
-                <h2 class="section-title">Daftar Kendaraan Operasional Sekolah</h2>
-
-                <!-- Vehicles Grid -->
-                <div id="vehiclesGrid" class="events-grid">
-                    <!-- Vehicle cards will be injected here by JS -->
-                </div>
-            </section>
 
             <!-- Section 3: Modul Pengaduan & Aspirasi Warga Sekolah -->
             <section id="complaintsSection">
-                <div class="action-bar" style="justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 10px; flex-wrap: wrap;">
-                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                        <button class="btn btn-primary" id="addComplaintBtn" style="background: linear-gradient(135deg, #166534, #15803d); box-shadow: 0 4px 14px rgba(22, 101, 52, 0.35);">
+                <div class="action-bar"
+                    style="justify-content: center; align-items: center; margin-bottom: 1rem; gap: 10px; flex-wrap: nowrap;">
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: nowrap;">
+                        <button class="btn btn-primary" id="addComplaintBtn">
                             <i class="fas fa-camera"></i> 📝 Lapor Detail (Form &amp; Foto)
                         </button>
-                        <a href="#quickReportSection" class="btn btn-secondary glass" id="jumpQuickReportBtn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 8px; font-weight: 600;">
-                            <i class="fas fa-bolt" style="color: #eab308;"></i> ⚡ Lapor Cepat (Daftar Fasilitas)
+                        <a href="#quickReportSection" class="btn btn-secondary" id="jumpQuickReportBtn">
+                            <i class="fas fa-bolt"></i> ⚡ Lapor Cepat (Daftar Fasilitas)
                         </a>
                     </div>
 
                     <!-- Admin Actions for Map and Facilities -->
-                    <div id="adminActions" class="admin-actions hidden">
+                    <div id="adminActions" class="admin-actions hidden" style="flex-wrap: nowrap;">
                         <button class="btn btn-secondary" id="manageFacilitiesBtn"><i class="fas fa-tools"></i> Kelola
                             Fasilitas</button>
                         <button class="btn btn-secondary" id="mapEditorBtn"><i class="fas fa-map"></i> Pemetaan
                             Denah</button>
-                        <button class="btn btn-primary" onclick="openReportModal()"><i class="fas fa-file-alt"></i> Rekapitulasi & Laporan</button>
                     </div>
                 </div>
 
@@ -184,19 +169,25 @@
                                 <i class="fas fa-clipboard-check"></i> ⚡ Lapor Cepat Pemilahan Sampah per Fasilitas
                             </h3>
                             <p class="quick-report-subtitle">
-                                Klik langsung opsi <strong>Sudah Dipilah</strong> (🟢) atau <strong>Belum Dipilah</strong> (🔴) pada kategori Organik &amp; Anorganik di setiap ruangan.
+                                Klik langsung opsi <strong>Sudah Dipilah</strong> (🟢) atau <strong>Belum
+                                    Dipilah</strong> (🔴) pada kategori Organik &amp; Anorganik di setiap ruangan.
                             </p>
                         </div>
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-                            <input type="date" id="quickReportDate" class="form-control" style="padding: 0.5rem; border-radius: 8px; border: 1px solid var(--color-border); width: auto;" title="Tanggal Pemantauan (Opsional)">
-                            <button type="button" class="btn btn-secondary glass" id="markAllSortedBtn" title="Tandai semua ruangan sudah dipilah">
-                                <i class="fas fa-check-double" style="color: #10b981;"></i> Tandai Semua Terpilah
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                            <input type="date" id="quickReportDate" class="form-control"
+                                style="padding: 0.6rem 1rem; border-radius: 12px; border: 1px solid rgba(226, 232, 240, 0.8); width: auto; font-family: inherit; font-size: 0.9rem; color: var(--color-text); box-shadow: 0 2px 8px rgba(0,0,0,0.02);"
+                                title="Tanggal Pemantauan (Opsional)">
+                            <button type="button" class="btn btn-soft-green" id="markAllSortedBtn"
+                                title="Tandai semua ruangan sudah dipilah">
+                                <i class="fas fa-check-double"></i> Tandai Semua Terpilah
                             </button>
-                            <button type="button" class="btn btn-secondary glass" id="markAllUnsortedBtn" title="Tandai semua ruangan belum dipilah">
-                                <i class="fas fa-times-circle" style="color: #ef4444;"></i> Tandai Semua Belum
+                            <button type="button" class="btn btn-soft-red" id="markAllUnsortedBtn"
+                                title="Tandai semua ruangan belum dipilah">
+                                <i class="fas fa-times-circle"></i> Tandai Semua Belum
                             </button>
-                            <button type="button" class="btn btn-secondary glass" id="clearAllStatusBtn" title="Bersihkan semua status pilihan">
-                                <i class="fas fa-eraser" style="color: #64748b;"></i> Bersihkan Semua
+                            <button type="button" class="btn btn-soft-gray" id="clearAllStatusBtn"
+                                title="Bersihkan semua status pilihan">
+                                <i class="fas fa-eraser"></i> Bersihkan Semua
                             </button>
                         </div>
                     </div>
@@ -244,15 +235,18 @@
                     <!-- Toolbar Filter & Search -->
                     <div class="quick-report-toolbar">
                         <div class="search-box glass quick-search-box" style="padding: 0;">
-                            <select id="quickReportSearchInput" style="width: 100%; border: none; background: transparent; padding: 10px 14px; font-size: 0.95rem; outline: none; cursor: pointer; color: var(--color-text);">
+                            <select id="quickReportSearchInput"
+                                style="width: 100%; border: none; background: transparent; padding: 10px 14px; font-size: 0.95rem; outline: none; cursor: pointer; color: var(--color-text);">
                                 <option value="">-- Semua Fasilitas / Ruangan --</option>
                                 <!-- Opsi fasilitas akan diisi via JS -->
                             </select>
                         </div>
                         <div class="quick-report-filter-pills">
                             <button type="button" class="pill-btn active" data-quick-filter="all">Semua Ruangan</button>
-                            <button type="button" class="pill-btn" data-quick-filter="unsorted" style="color: #e11d48;"><i class="fas fa-exclamation-circle"></i> Belum Dipilah</button>
-                            <button type="button" class="pill-btn" data-quick-filter="sorted" style="color: #059669;"><i class="fas fa-check"></i> Sudah Terpilah</button>
+                            <button type="button" class="pill-btn" data-quick-filter="unsorted"
+                                style="color: #e11d48;"><i class="fas fa-exclamation-circle"></i> Belum Dipilah</button>
+                            <button type="button" class="pill-btn" data-quick-filter="sorted" style="color: #059669;"><i
+                                    class="fas fa-check"></i> Sudah Terpilah</button>
                         </div>
                     </div>
 
@@ -263,12 +257,14 @@
                                 <tr>
                                     <th class="col-fac-name">Nama Fasilitas / Ruangan</th>
                                     <th class="col-waste-cat">
-                                        <span class="th-cat-title cat-organic"><i class="fas fa-apple-alt"></i> Sampah Organik</span>
+                                        <span class="th-cat-title cat-organic"><i class="fas fa-apple-alt"></i> Sampah
+                                            Organik</span>
                                     </th>
                                     <th class="col-waste-cat">
-                                        <span class="th-cat-title cat-inorganic"><i class="fas fa-recycle"></i> Sampah Anorganik</span>
+                                        <span class="th-cat-title cat-inorganic"><i class="fas fa-recycle"></i> Sampah
+                                            Anorganik</span>
                                     </th>
-                                    <th class="col-action">Lapor Detail</th>
+                                    <th class="col-action">Keterangan</th>
                                 </tr>
                             </thead>
                             <tbody id="quickReportTableBody">
@@ -285,30 +281,41 @@
             <div id="mapActionModal" class="modal-overlay hidden" style="z-index: 1100;">
                 <div class="modal-content glass" style="max-width: 400px; padding: 1.5rem;">
                     <div class="modal-header" style="border-bottom: none; padding-bottom: 0;">
-                        <h2 id="mapActionTitle" style="font-size: 1.25rem; color: var(--color-primary); margin: 0;">Aksi Cepat</h2>
-                        <button class="close-modal" onclick="document.getElementById('mapActionModal').classList.add('hidden')"><i class="fas fa-times"></i></button>
+                        <h2 id="mapActionTitle" style="font-size: 1.25rem; color: var(--color-primary); margin: 0;">Aksi
+                            Cepat</h2>
+                        <button class="close-modal"
+                            onclick="document.getElementById('mapActionModal').classList.add('hidden')"><i
+                                class="fas fa-times"></i></button>
                     </div>
                     <div class="modal-body" style="padding-top: 10px; text-align: center;">
-                        <p style="margin-bottom: 20px; font-size: 0.95rem; color: var(--color-text-muted);">Pilih status pemilahan sampah untuk ruangan ini:</p>
-                        
+                        <p style="margin-bottom: 20px; font-size: 0.95rem; color: var(--color-text-muted);">Pilih status
+                            pemilahan sampah untuk ruangan ini:</p>
+
                         <div style="display: flex; flex-direction: column; gap: 15px;">
-                            <div style="background: rgba(225, 29, 72, 0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(225, 29, 72, 0.1);">
-                                <h4 style="margin: 0 0 10px 0; color: #16a34a;"><i class="fas fa-apple-alt"></i> Sampah Organik</h4>
-                                <div id="mapActionOrganicGroup" class="waste-toggle-group" style="width: 100%; display: flex;">
+                            <div
+                                style="background: rgba(225, 29, 72, 0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(225, 29, 72, 0.1);">
+                                <h4 style="margin: 0 0 10px 0; color: #16a34a;"><i class="fas fa-apple-alt"></i> Sampah
+                                    Organik</h4>
+                                <div id="mapActionOrganicGroup" class="waste-toggle-group"
+                                    style="width: 100%; display: flex;">
                                     <!-- Tombol di-render via JS -->
                                 </div>
                             </div>
-                            
-                            <div style="background: rgba(37, 99, 235, 0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(37, 99, 235, 0.1);">
-                                <h4 style="margin: 0 0 10px 0; color: #2563eb;"><i class="fas fa-recycle"></i> Sampah Anorganik</h4>
-                                <div id="mapActionInorganicGroup" class="waste-toggle-group" style="width: 100%; display: flex;">
+
+                            <div
+                                style="background: rgba(37, 99, 235, 0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(37, 99, 235, 0.1);">
+                                <h4 style="margin: 0 0 10px 0; color: #2563eb;"><i class="fas fa-recycle"></i> Sampah
+                                    Anorganik</h4>
+                                <div id="mapActionInorganicGroup" class="waste-toggle-group"
+                                    style="width: 100%; display: flex;">
                                     <!-- Tombol di-render via JS -->
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer" style="margin-top: 20px; border-top: none; justify-content: center;">
-                        <button class="btn btn-secondary" onclick="document.getElementById('mapActionModal').classList.add('hidden')">Tutup</button>
+                        <button class="btn btn-secondary"
+                            onclick="document.getElementById('mapActionModal').classList.add('hidden')">Tutup</button>
                     </div>
                 </div>
             </div>
@@ -371,7 +378,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -398,7 +406,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -425,7 +434,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -451,7 +461,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -478,7 +489,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -505,7 +517,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -531,7 +544,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -558,7 +572,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -584,7 +599,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -611,7 +627,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -638,7 +655,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -665,7 +683,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -692,7 +711,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -719,7 +739,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -745,7 +766,8 @@
                                                     <path
                                                         d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
                                                     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                                                </svg></span></div>
+                                                </svg></span>
+                                        </div>
                                     </td>
                                     <td class="col-kader"
                                         style="border: 1px solid #d4e6d4; padding: 12px; background-color: #f1f8f1; color: #1a5c28; font-weight: bold; text-align: center; width: 25%;">
@@ -1227,11 +1249,14 @@
             <div class="modal-content glass" style="max-width: 900px; width: 95%;">
                 <div class="modal-header">
                     <h3>Rekapitulasi & Cetak Laporan</h3>
-                    <button class="close-btn" id="closeReportModal" onclick="document.getElementById('reportModal').classList.add('hidden')"><i class="fas fa-times"></i></button>
+                    <button class="close-btn" id="closeReportModal"
+                        onclick="document.getElementById('reportModal').classList.add('hidden')"><i
+                            class="fas fa-times"></i></button>
                 </div>
                 <div class="modal-body" style="padding: 20px;">
                     <!-- Filter Controls -->
-                    <div class="report-filters" style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; align-items: center; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
+                    <div class="report-filters"
+                        style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; align-items: center; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
                         <div>
                             <label style="display:block; font-size: 0.85rem; margin-bottom: 5px;">Jenis Laporan</label>
                             <select id="reportTypeSelect" class="form-control" onchange="renderReportTable(this.value)">
@@ -1244,34 +1269,46 @@
                         </div>
                         <div>
                             <label style="display:block; font-size: 0.85rem; margin-bottom: 5px;">Dari Tanggal</label>
-                            <input type="date" id="reportStartDate" class="form-control" onchange="renderReportTable(document.getElementById('reportTypeSelect').value)">
+                            <input type="date" id="reportStartDate" class="form-control"
+                                onchange="renderReportTable(document.getElementById('reportTypeSelect').value)">
                         </div>
                         <div>
                             <label style="display:block; font-size: 0.85rem; margin-bottom: 5px;">Sampai Tanggal</label>
-                            <input type="date" id="reportEndDate" class="form-control" onchange="renderReportTable(document.getElementById('reportTypeSelect').value)">
+                            <input type="date" id="reportEndDate" class="form-control"
+                                onchange="renderReportTable(document.getElementById('reportTypeSelect').value)">
                         </div>
                         <div>
                             <label style="display:block; font-size: 0.85rem; margin-bottom: 5px;">Kategori</label>
-                            <select id="reportCategorySelect" class="form-control" onchange="renderReportTable(document.getElementById('reportTypeSelect').value)">
+                            <select id="reportCategorySelect" class="form-control"
+                                onchange="renderReportTable(document.getElementById('reportTypeSelect').value)">
                                 <option value="all">Semua Kategori</option>
                                 <option value="organik">Hanya Organik</option>
                                 <option value="anorganik">Hanya Anorganik</option>
                             </select>
                         </div>
-                        <div style="flex-grow: 1; display: flex; justify-content: flex-end; align-items: flex-end; gap: 10px;">
-                            <button class="btn btn-primary" onclick="window.printReport()"><i class="fas fa-print"></i> Cetak PDF</button>
-                            <button class="btn btn-secondary" onclick="window.exportReportToExcel()"><i class="fas fa-file-excel"></i> Unduh Excel</button>
-                            <button class="btn btn-outline" onclick="document.getElementById('editKopContainer').classList.toggle('hidden')"><i class="fas fa-cog"></i> Setup Kop/TTD</button>
+                        <div
+                            style="flex-grow: 1; display: flex; justify-content: flex-end; align-items: flex-end; gap: 10px;">
+                            <button class="btn btn-primary" onclick="window.printReport()"><i class="fas fa-print"></i>
+                                Cetak PDF</button>
+                            <button class="btn btn-secondary" onclick="window.exportReportToExcel()"><i
+                                    class="fas fa-file-excel"></i> Unduh Excel</button>
+                            <button class="btn btn-outline"
+                                onclick="document.getElementById('editKopContainer').classList.toggle('hidden')"><i
+                                    class="fas fa-cog"></i> Setup Kop/TTD</button>
                         </div>
                     </div>
 
                     <!-- Setup Kop Surat & TTD (Hidden by default) -->
-                    <div id="editKopContainer" class="hidden" style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                        <h4 style="margin-top: 0; margin-bottom: 15px; font-size: 1.1rem;">Pengaturan Kop Surat & Penandatangan</h4>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div id="editKopContainer" class="hidden"
+                        style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <h4 style="margin-top: 0; margin-bottom: 15px; font-size: 1.1rem;">Pengaturan Kop Surat &
+                            Penandatangan</h4>
+                        <div
+                            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                             <div>
                                 <label style="font-size: 0.8rem;">Nama Pemprov / Yayasan</label>
-                                <input type="text" id="inputGovName" class="form-control" value="PEMERINTAH PROVINSI JAWA BARAT">
+                                <input type="text" id="inputGovName" class="form-control"
+                                    value="PEMERINTAH PROVINSI JAWA BARAT">
                             </div>
                             <div>
                                 <label style="font-size: 0.8rem;">Nama Dinas / Cabang</label>
@@ -1287,37 +1324,45 @@
                             </div>
                             <div style="grid-column: 1 / -1;">
                                 <label style="font-size: 0.8rem;">Alamat Lengkap</label>
-                                <input type="text" id="inputAddress" class="form-control" value="Jln. K.H. Ahmad Dahlan No.2 Ciamis 46211">
+                                <input type="text" id="inputAddress" class="form-control"
+                                    value="Jln. K.H. Ahmad Dahlan No.2 Ciamis 46211">
                             </div>
                             <div>
                                 <label style="font-size: 0.8rem;">Kontak / Website / Email</label>
-                                <input type="text" id="inputContact" class="form-control" value="Telp: (0265) 771631 | Web: sman2ciamis.sch.id">
+                                <input type="text" id="inputContact" class="form-control"
+                                    value="Telp: (0265) 771631 | Web: sman2ciamis.sch.id">
                             </div>
 
                             <!-- Titi Mangsa (Tanggal & Tempat) -->
-                            <div style="grid-column: 1 / -1; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                            <div
+                                style="grid-column: 1 / -1; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
                                 <h5 style="margin:0 0 10px 0;">Titi Mangsa Laporan</h5>
                             </div>
                             <div>
                                 <label style="font-size: 0.8rem;">Tempat Terbit</label>
-                                <input type="text" id="reportPlaceInput" class="form-control" value="Ciamis" oninput="updateTitiMangsaUI()">
+                                <input type="text" id="reportPlaceInput" class="form-control" value="Ciamis"
+                                    oninput="updateTitiMangsaUI()">
                             </div>
                             <div>
                                 <label style="font-size: 0.8rem;">Tanggal Terbit</label>
-                                <input type="date" id="reportDateInput" class="form-control" onchange="updateTitiMangsaUI()">
+                                <input type="date" id="reportDateInput" class="form-control"
+                                    onchange="updateTitiMangsaUI()">
                             </div>
 
                             <!-- TTD 1 (Kepala Sekolah) -->
-                            <div style="grid-column: 1 / -1; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                            <div
+                                style="grid-column: 1 / -1; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
                                 <h5 style="margin:0 0 10px 0;">Penandatangan 1 (Kiri)</h5>
                             </div>
                             <div>
                                 <label style="font-size: 0.8rem;">Jabatan (Cth: Kepala Sekolah)</label>
-                                <input type="text" id="inputPrincipalTitle" class="form-control" value="Kepala SMAN 2 Ciamis">
+                                <input type="text" id="inputPrincipalTitle" class="form-control"
+                                    value="Kepala SMAN 2 Ciamis">
                             </div>
                             <div>
                                 <label style="font-size: 0.8rem;">Nama Terang</label>
-                                <input type="text" id="inputPrincipalName" class="form-control" value="Drs. H. Nurdin, M.Pd.">
+                                <input type="text" id="inputPrincipalName" class="form-control"
+                                    value="Drs. H. Nurdin, M.Pd.">
                             </div>
                             <div>
                                 <label style="font-size: 0.8rem;">NIP / NIK</label>
@@ -1325,7 +1370,8 @@
                             </div>
 
                             <!-- TTD 2 (Ketua Adiwiyata) -->
-                            <div style="grid-column: 1 / -1; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                            <div
+                                style="grid-column: 1 / -1; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
                                 <h5 style="margin:0 0 10px 0;">Penandatangan 2 (Kanan)</h5>
                             </div>
                             <div>
@@ -1334,7 +1380,8 @@
                             </div>
                             <div>
                                 <label style="font-size: 0.8rem;">Nama Terang</label>
-                                <input type="text" id="inputStaffName" class="form-control" value="H. Endang Rahmat, S.Pd., M.Pd.">
+                                <input type="text" id="inputStaffName" class="form-control"
+                                    value="H. Endang Rahmat, S.Pd., M.Pd.">
                             </div>
                             <div>
                                 <label style="font-size: 0.8rem;">NIP / NIK</label>
@@ -1342,28 +1389,43 @@
                             </div>
                         </div>
                         <div style="margin-top: 15px; text-align: right;">
-                            <button class="btn btn-primary" onclick="saveKopSuratConfig()">Simpan & Terapkan Pengaturan</button>
+                            <button class="btn btn-primary" onclick="saveKopSuratConfig()">Simpan & Terapkan
+                                Pengaturan</button>
                         </div>
                     </div>
 
                     <!-- Print Area / Layout -->
-                    <div id="printArea" class="print-area" style="background: white; color: black; padding: 20px; border: 1px solid #e2e8f0; border-radius: 4px;">
+                    <div id="printArea" class="print-area"
+                        style="background: white; color: black; padding: 20px; border: 1px solid #e2e8f0; border-radius: 4px;">
                         <!-- KOP SURAT -->
-                        <div style="display: flex; align-items: center; border-bottom: 3px solid black; padding-bottom: 10px; margin-bottom: 20px;">
-                            <img src="logo.png" alt="Logo" style="width: 80px; height: 80px; object-fit: contain; margin-right: 20px;" onerror="this.style.display='none'">
+                        <div
+                            style="display: flex; align-items: center; border-bottom: 3px solid black; padding-bottom: 10px; margin-bottom: 20px;">
+                            <img src="logo.png" alt="Logo"
+                                style="width: 80px; height: 80px; object-fit: contain; margin-right: 20px;"
+                                onerror="this.style.display='none'">
                             <div style="flex-grow: 1; text-align: center;">
-                                <h3 id="kopGovName" style="margin: 0; font-size: 16px; font-weight: normal; text-transform: uppercase;">PEMERINTAH PROVINSI JAWA BARAT</h3>
-                                <h2 id="kopDeptName" style="margin: 0; font-size: 18px; font-weight: bold; text-transform: uppercase;">DINAS PENDIDIKAN</h2>
-                                <h1 id="kopSchoolName" style="margin: 5px 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">SMAN 2 CIAMIS</h1>
+                                <h3 id="kopGovName"
+                                    style="margin: 0; font-size: 16px; font-weight: normal; text-transform: uppercase;">
+                                    PEMERINTAH PROVINSI JAWA BARAT</h3>
+                                <h2 id="kopDeptName"
+                                    style="margin: 0; font-size: 18px; font-weight: bold; text-transform: uppercase;">
+                                    DINAS PENDIDIKAN</h2>
+                                <h1 id="kopSchoolName"
+                                    style="margin: 5px 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">
+                                    SMAN 2 CIAMIS</h1>
                                 <p id="kopSubTitle" style="margin: 0; font-size: 12px; font-weight: bold;"></p>
-                                <p id="kopAddress" style="margin: 0; font-size: 12px;">Jln. K.H. Ahmad Dahlan No.2 Ciamis 46211</p>
-                                <p id="kopContact" style="margin: 0; font-size: 12px;">Telp: (0265) 771631 | Web: sman2ciamis.sch.id</p>
+                                <p id="kopAddress" style="margin: 0; font-size: 12px;">Jln. K.H. Ahmad Dahlan No.2
+                                    Ciamis 46211</p>
+                                <p id="kopContact" style="margin: 0; font-size: 12px;">Telp: (0265) 771631 | Web:
+                                    sman2ciamis.sch.id</p>
                             </div>
                         </div>
 
                         <!-- REPORT CONTENT -->
                         <div style="text-align: center; margin-bottom: 20px;">
-                            <h3 id="reportTitleHeading" style="margin: 0 0 5px 0; font-size: 18px; font-weight: bold; text-decoration: underline; text-transform: uppercase;">Laporan Rekapitulasi Pemilahan Sampah</h3>
+                            <h3 id="reportTitleHeading"
+                                style="margin: 0 0 5px 0; font-size: 18px; font-weight: bold; text-decoration: underline; text-transform: uppercase;">
+                                Laporan Rekapitulasi Pemilahan Sampah</h3>
                             <p id="reportSubHeading" style="margin: 0; font-size: 14px;">Periode: -</p>
                         </div>
 
@@ -1382,14 +1444,18 @@
                                 <p style="margin: 0;">Mengetahui,</p>
                                 <p id="principalTitleText" style="margin: 0;">Kepala SMAN 2 Ciamis</p>
                                 <br><br><br><br>
-                                <p id="principalNameText" style="margin: 0; font-weight: bold; text-decoration: underline;">Nama Kepala Sekolah</p>
+                                <p id="principalNameText"
+                                    style="margin: 0; font-weight: bold; text-decoration: underline;">Nama Kepala
+                                    Sekolah</p>
                                 <p style="margin: 0;">NIP. <span id="principalNipText">-</span></p>
                             </div>
                             <div style="text-align: center; width: 40%;">
-                                <p style="margin: 0;"><span id="reportSignPlace">Ciamis</span>, <span id="reportSignDate">...</span></p>
+                                <p style="margin: 0;"><span id="reportSignPlace">Ciamis</span>, <span
+                                        id="reportSignDate">...</span></p>
                                 <p id="staffTitleText" style="margin: 0;">Ketua Adiwiyata</p>
                                 <br><br><br><br>
-                                <p id="staffNameText" style="margin: 0; font-weight: bold; text-decoration: underline;">Nama Ketua Adiwiyata</p>
+                                <p id="staffNameText" style="margin: 0; font-weight: bold; text-decoration: underline;">
+                                    Nama Ketua Adiwiyata</p>
                                 <p style="margin: 0;">NIP. <span id="staffNipText">-</span></p>
                             </div>
                         </div>
@@ -1422,8 +1488,10 @@
     <div id="mapModal" class="modal hidden">
         <div class="modal-content map-modal-content">
             <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="margin:0; font-size:1.1rem;"><i class="fas fa-map-marked-alt" style="color:var(--color-primary);"></i> Visualisasi Pemetaan Denah</h3>
-                <button class="close-btn" id="closeMapModal" type="button" title="Tutup"><i class="fas fa-times"></i></button>
+                <h3 style="margin:0; font-size:1.1rem;"><i class="fas fa-map-marked-alt"
+                        style="color:var(--color-primary);"></i> Visualisasi Pemetaan Denah</h3>
+                <button class="close-btn" id="closeMapModal" type="button" title="Tutup"><i
+                        class="fas fa-times"></i></button>
             </div>
             <div class="map-wrapper" id="mapWrapper">
                 <img src="denah.png" alt="Denah Sekolah">
@@ -1432,95 +1500,7 @@
         </div>
     </div>
 
-    <!-- Add/Edit Vehicle Modal -->
-    <div id="vehicleModal" class="modal hidden">
-        <div class="modal-content glass" style="max-width: 650px;">
-            <div class="modal-header">
-                <h3 id="vehicleModalTitle">Tambah Kendaraan Operasional</h3>
-                <button class="close-btn" id="closeVehicleModal" type="button"><i class="fas fa-times"></i></button>
-            </div>
-            <form id="vehicleForm">
-                <input type="hidden" id="vehicleId">
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Nama Kendaraan</label>
-                        <input type="text" id="vehicleName" required class="form-control"
-                            placeholder="Contoh: Avanza Dinas / Bus Sekolah / Motor Operasional">
-                    </div>
-                    <div class="form-group">
-                        <label>Plat Nomor</label>
-                        <input type="text" id="vehiclePlate" required class="form-control"
-                            placeholder="Contoh: Z 1234 XX">
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Jenis Kendaraan</label>
-                        <select id="vehicleType" required class="form-control">
-                            <option value="Mobil">Mobil</option>
-                            <option value="Motor">Motor</option>
-                            <option value="Bus">Bus</option>
-                            <option value="Lainnya">Lainnya</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Status Kondisi</label>
-                        <select id="vehicleStatus" required class="form-control">
-                            <option value="Siap Operasional">🟢 Siap Operasional</option>
-                            <option value="Perlu Perbaikan">🟡 Perlu Perbaikan</option>
-                            <option value="Dalam Servis">🔴 Dalam Servis / Bengkel</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Kilometer saat ini (KM)</label>
-                        <input type="number" id="vehicleKm" class="form-control" placeholder="Contoh: 45000">
-                    </div>
-                    <div class="form-group">
-                        <label>KM Target Ganti Oli Berikutnya</label>
-                        <input type="number" id="vehicleKmNextOil" class="form-control" placeholder="Contoh: 50000">
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Tgl Terakhir Ganti Oli</label>
-                        <input type="date" id="vehicleLastOilDate" class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label>Tgl Target Ganti Oli Berikutnya</label>
-                        <input type="date" id="vehicleNextOilDate" class="form-control">
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Jatuh Tempo Pajak STNK (Tahunan)</label>
-                        <input type="date" id="vehicleTaxDate" required class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label>Jatuh Tempo Plat (5 Tahunan)</label>
-                        <input type="date" id="vehiclePlateDate" class="form-control">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Catatan Perawatan / Kelengkapan (Opsional)</label>
-                    <textarea id="vehicleNotes" rows="2" class="form-control"
-                        placeholder="Catatan kondisi kendaraan, kelengkapan surat, dll..."></textarea>
-                </div>
-
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" id="cancelVehicleBtn">Batal</button>
-                    <button type="submit" class="btn btn-primary" id="saveVehicleBtn">Simpan Kendaraan</button>
-                </div>
-            </form>
-        </div>
-    </div>
 
     <!-- Add Complaint Modal (Public Warga Sekolah) -->
     <div id="complaintModal" class="modal hidden">
@@ -1822,10 +1802,13 @@
     <div id="mapEditorModal" class="modal hidden">
         <div class="modal-content map-modal-content">
             <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="margin: 0; font-size: 1.1rem; color: var(--color-primary);"><i class="fas fa-map-marked-alt"></i> Editor Pemetaan Fasilitas</h3>
-                <button class="close-btn" id="closeMapEditorModal" type="button" title="Tutup"><i class="fas fa-times"></i></button>
+                <h3 style="margin: 0; font-size: 1.1rem; color: var(--color-primary);"><i
+                        class="fas fa-map-marked-alt"></i> Editor Pemetaan Fasilitas</h3>
+                <button class="close-btn" id="closeMapEditorModal" type="button" title="Tutup"><i
+                        class="fas fa-times"></i></button>
             </div>
-            <div style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap; margin-top: 1rem;">
+            <div
+                style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap; margin-top: 1rem;">
                 <select id="editorFacilitySelect" class="form-control" style="flex: 1; min-width: 200px;">
                     <option value="">-- Pilih Fasilitas untuk Dipetakan --</option>
                 </select>
@@ -1863,8 +1846,12 @@
 
 
 
-    <!-- Script Konfigurasi & Aplikasi GAS -->
-    <script src="gas-config.js"></script>
+    <!-- Firebase SDK (v8) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <!-- Script Konfigurasi & Aplikasi -->
+    <script src="firebase-config.js"></script>
     <script src="app.js"></script>
 </body>
 
