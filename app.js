@@ -390,20 +390,13 @@ async function loadFromFirebase(isSilent = false) {
 
         // 2. Setup Real-time Listener untuk Pemilahan Sampah
         fbDb.collection('pemilahanSampah').onSnapshot(snapshot => {
+            if (window.isClearingReports) return; // Ignore bouncing snapshots during mass operations
             let reportsData = [];
             snapshot.forEach(doc => reportsData.push(doc.data()));
 
-            if (reportsData.length === 0) {
-                const localReports = JSON.parse(localStorage.getItem('sardas_reports') || '[]');
-                if (localReports.length > 0) {
-                    localReports.forEach(r => fbDb.collection('pemilahanSampah').doc(r.id).set(r, { merge: true }));
-                    return;
-                }
-            } else {
-                pemilahanSampah = reportsData;
-                localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
-                if (typeof renderComplaints === 'function') renderComplaints();
-            }
+            pemilahanSampah = reportsData;
+            localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
+            if (typeof renderComplaints === 'function') renderComplaints();
         });
 
         // 3. Helper Fetch Koleksi Lainnya
@@ -1318,14 +1311,11 @@ function renderFacilityAdminList(filterText = "") {
             const idx = parseInt(e.currentTarget.getAttribute('data-idx'));
             const facName = facilities[idx];
 
-            if (await window.confirmAsync(`Apakah Anda yakin ingin menghapus fasilitas "${facName}"?\n(Titik koordinat denah fasilitas ini juga akan dihapus)`)) {
+            if (await window.confirmAsync(`Apakah Anda yakin ingin menghapus fasilitas "${facName}"?\n(Tenang saja, titik koordinat denah yang sudah dipetakan tidak akan hilang, dan akan otomatis terhubung kembali jika fasilitas ini ditambahkan ulang nanti)`)) {
                 facilities.splice(idx, 1);
 
-                const key = normalizeFacilityName(facName);
-                if (mapCoordinates[key]) {
-                    delete mapCoordinates[key];
-                    await saveToDatabase('settings', 'mapCoordinates', { coords: mapCoordinates });
-                }
+                // Kami TIDAK menghapus mapCoordinates[key] di sini sesuai permintaan,
+                // sehingga jika fasilitas ditambahkan lagi, koordinatnya otomatis terhubung.
 
                 await saveToDatabase('settings', 'facilities', { list: facilities });
                 renderFacilities();
@@ -1708,7 +1698,7 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
     sortedPemilahan.forEach(r => {
         if (r.lokasi) {
             if (!statusMap[r.lokasi]) {
-                statusMap[r.lokasi] = { orgState: 'neutral', inorgState: 'neutral', catatan: '' };
+                statusMap[r.lokasi] = { orgState: 'neutral', inorgState: 'neutral', catatan: '', imageUrl: '' };
             }
             if (r.status_organik === 'Sudah') statusMap[r.lokasi].orgState = 'sorted';
             else if (r.status_organik === 'Belum') statusMap[r.lokasi].orgState = 'unsorted';
@@ -1717,6 +1707,7 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
             else if (r.status_anorganik === 'Belum') statusMap[r.lokasi].inorgState = 'unsorted';
 
             if (r.catatan) statusMap[r.lokasi].catatan = r.catatan;
+            if (r.imageUrl) statusMap[r.lokasi].imageUrl = r.imageUrl;
         }
     });
 
@@ -1724,11 +1715,13 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
         let orgState = 'neutral';
         let inorgState = 'neutral';
         let catatan = '-';
+        let imageUrl = '';
 
         if (statusMap[fac]) {
             orgState = statusMap[fac].orgState;
             inorgState = statusMap[fac].inorgState;
             catatan = statusMap[fac].catatan || '-';
+            imageUrl = statusMap[fac].imageUrl || '';
         }
 
         if (orgState === 'unsorted') pendingOrganicCount++;
@@ -1771,9 +1764,13 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
         const tdAction = document.createElement('td');
         tdAction.setAttribute('data-label', 'Keterangan');
         let displayCatatan = catatan === '-' ? 'Belum ada keterangan' : catatan;
+        let photoIcon = imageUrl ? `<img src="${imageUrl}" alt="Foto" style="width: 36px; height: 36px; object-fit: cover; border-radius: 4px; margin-right: 8px; border: 1px solid rgba(59, 130, 246, 0.3); flex-shrink: 0;" title="Klik untuk memperbesar foto" onclick="event.stopPropagation(); window.showReportPhoto('${fac}')">` : '';
         tdAction.innerHTML = `
             <div style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.85rem; color: var(--color-text-muted); padding: 4px; border: 1px dashed transparent; border-radius: 4px; transition: all 0.2s;" onmouseover="this.style.border='1px dashed var(--color-primary-light)'" onmouseout="this.style.border='1px dashed transparent'" onclick="window.editKeterangan('${fac}')" title="Klik untuk mengubah keterangan">
-                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${displayCatatan}</span>
+                <div style="display: flex; align-items: center; flex: 1; overflow: hidden;">
+                    ${photoIcon}
+                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${displayCatatan}</span>
+                </div>
                 <i class="fas fa-edit" style="color: var(--color-primary-light);"></i>
             </div>
         `;
@@ -1796,6 +1793,23 @@ function renderQuickReportList(filterText = "", statusFilter = "all") {
     if (document.getElementById('statPendingOrganic')) document.getElementById('statPendingOrganic').textContent = pendingOrganicCount;
     if (document.getElementById('statPendingInorganic')) document.getElementById('statPendingInorganic').textContent = pendingInorganicCount;
 }
+
+window.showReportPhoto = function (facName) {
+    const report = pemilahanSampah.find(r => r.lokasi === facName);
+    if (report && report.imageUrl) {
+        Swal.fire({
+            imageUrl: report.imageUrl,
+            imageAlt: 'Foto Laporan ' + facName,
+            showConfirmButton: true,
+            confirmButtonText: 'Tutup',
+            background: 'rgba(30, 41, 59, 0.95)',
+            color: '#f8fafc',
+            customClass: {
+                popup: 'swal-wide'
+            }
+        });
+    }
+};
 
 window.getQuickReportDate = function () {
     const dp = document.getElementById('quickReportDate');
@@ -2059,16 +2073,18 @@ window.clearAllStatus = async function () {
         return;
     }
     if (await window.confirmAsync("Perhatian! Aksi ini akan membersihkan semua indikator pemilahan sampah hari ini.\n\nApakah Anda yakin ingin menghapus/mereset status untuk seluruh fasilitas?")) {
+        window.isClearingReports = true;
         // Hapus semua data dari pemilahanSampah (atau buat kosong)
         const oldReports = [...pemilahanSampah];
         pemilahanSampah = [];
         localStorage.setItem('sardas_reports', '[]');
         renderComplaints();
 
-        // Hapus dari database (fire and forget)
-        oldReports.forEach(r => {
-            deleteFromDatabase('pemilahanSampah', r.id).catch(console.error);
-        });
+        // Hapus dari database secara massal (batch) agar tidak ada yang tertinggal
+        Promise.all(oldReports.map(r => deleteFromDatabase('pemilahanSampah', r.id).catch(console.error)))
+            .finally(() => {
+                setTimeout(() => { window.isClearingReports = false; }, 2000);
+            });
 
         window.alertSwal("Status pemilahan semua fasilitas telah direset (Netral).");
     }
@@ -2949,6 +2965,34 @@ function setupEventListeners() {
                     window.alertSwal("Laporan pengaduan Anda berhasil dikirim! Tim Sarpras akan segera memverifikasi dan menindaklanjuti laporan Anda.");
                 }
 
+                // Sinkronisasikan Lapor Detail ke Pemilahan Sampah agar memunculkan visualisasi di Denah!
+                if (compData.location && compData.location !== '-') {
+                    let existingReportIdx = pemilahanSampah.findIndex(r => r.lokasi === compData.location);
+                    let report;
+                    if (existingReportIdx >= 0) {
+                        report = pemilahanSampah[existingReportIdx];
+                    } else {
+                        report = {
+                            id: Date.now().toString() + '_' + Math.random().toString(36).substr(2, 5),
+                            lokasi: compData.location
+                        };
+                        pemilahanSampah.push(report);
+                    }
+                    report.tanggal = compData.createdAt;
+                    report.status_organik = 'Belum';
+                    report.status_anorganik = 'Belum';
+                    report.petugas = compData.reporter;
+                    report.catatan = `[${compData.category}] ${compData.desc}`;
+                    if (compData.imageUrl) {
+                        report.imageUrl = compData.imageUrl;
+                    }
+                    report.updatedAt = new Date().toISOString();
+                    
+                    saveToDatabase('pemilahanSampah', report.id, report, existingReportIdx >= 0).catch(console.error);
+                    localStorage.setItem('sardas_reports', JSON.stringify(pemilahanSampah));
+                    if (typeof renderComplaints === 'function') renderComplaints();
+                }
+
                 // Reset Form & Input Foto
                 DOM.complaintForm.reset();
                 if (document.getElementById('complaintFormId')) document.getElementById('complaintFormId').value = '';
@@ -3202,46 +3246,63 @@ function setupEventListeners() {
         DOM.closeConsumableHistoryModal.addEventListener('click', () => DOM.consumableHistoryModal.classList.add('hidden'));
     }
 
-    document.getElementById('multiDayCheck').addEventListener('change', (e) => {
-        const endDateGroup = document.getElementById('endDateGroup');
-        const dateLabelMain = document.getElementById('dateLabelMain');
-        if (e.target.checked) {
-            endDateGroup.classList.remove('hidden');
-            dateLabelMain.textContent = 'Mulai Tanggal';
-            document.getElementById('eventEndDate').required = true;
-        } else {
-            endDateGroup.classList.add('hidden');
-            dateLabelMain.textContent = 'Tanggal';
-            document.getElementById('eventEndDate').required = false;
-            document.getElementById('eventEndDate').value = '';
-        }
-    });
+    const multiDayCheck = document.getElementById('multiDayCheck');
+    if (multiDayCheck) {
+        multiDayCheck.addEventListener('change', (e) => {
+            const endDateGroup = document.getElementById('endDateGroup');
+            const dateLabelMain = document.getElementById('dateLabelMain');
+            if (e.target.checked) {
+                if (endDateGroup) endDateGroup.classList.remove('hidden');
+                if (dateLabelMain) dateLabelMain.textContent = 'Mulai Tanggal';
+                const evEndDate = document.getElementById('eventEndDate');
+                if (evEndDate) evEndDate.required = true;
+            } else {
+                if (endDateGroup) endDateGroup.classList.add('hidden');
+                if (dateLabelMain) dateLabelMain.textContent = 'Tanggal';
+                const evEndDate = document.getElementById('eventEndDate');
+                if (evEndDate) {
+                    evEndDate.required = false;
+                    evEndDate.value = '';
+                }
+            }
+        });
+    }
 
-    DOM.searchInput.addEventListener('input', (e) => {
-        renderEvents(e.target.value);
-    });
+    if (DOM.searchInput) {
+        DOM.searchInput.addEventListener('input', (e) => {
+            renderEvents(e.target.value);
+        });
+    }
 
-    DOM.closeDetailBtn.addEventListener('click', () => {
-        DOM.detailPanel.classList.remove('open');
-        DOM.panelOverlay.classList.remove('active');
-    });
-    DOM.panelOverlay.addEventListener('click', () => {
-        DOM.detailPanel.classList.remove('open');
-        DOM.panelOverlay.classList.remove('active');
-        DOM.loginModal.classList.add('hidden');
-    });
+    if (DOM.closeDetailBtn) {
+        DOM.closeDetailBtn.addEventListener('click', () => {
+            if (DOM.detailPanel) DOM.detailPanel.classList.remove('open');
+            if (DOM.panelOverlay) DOM.panelOverlay.classList.remove('active');
+        });
+    }
+    if (DOM.panelOverlay) {
+        DOM.panelOverlay.addEventListener('click', () => {
+            if (DOM.detailPanel) DOM.detailPanel.classList.remove('open');
+            DOM.panelOverlay.classList.remove('active');
+            if (DOM.loginModal) DOM.loginModal.classList.add('hidden');
+        });
+    }
 
-    DOM.adminLoginBtn.addEventListener('click', () => {
-        DOM.loginModal.classList.remove('hidden');
-        DOM.panelOverlay.classList.add('active');
-        setTimeout(() => {
-            if (DOM.adminPassword) DOM.adminPassword.focus();
-        }, 100);
-    });
-    DOM.closeLoginModal.addEventListener('click', () => {
-        DOM.loginModal.classList.add('hidden');
-        DOM.panelOverlay.classList.remove('active');
-    });
+    if (DOM.adminLoginBtn) {
+        DOM.adminLoginBtn.addEventListener('click', () => {
+            if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
+            if (DOM.panelOverlay) DOM.panelOverlay.classList.add('active');
+            setTimeout(() => {
+                if (DOM.adminPassword) DOM.adminPassword.focus();
+            }, 100);
+        });
+    }
+    if (DOM.closeLoginModal) {
+        DOM.closeLoginModal.addEventListener('click', () => {
+            if (DOM.loginModal) DOM.loginModal.classList.add('hidden');
+            if (DOM.panelOverlay) DOM.panelOverlay.classList.remove('active');
+        });
+    }
 
     const loginForm = document.getElementById('loginForm');
     const handleLoginSubmit = async (e) => {
@@ -3317,26 +3378,34 @@ function setupEventListeners() {
 
     if (loginForm) {
         loginForm.addEventListener('submit', handleLoginSubmit);
-    } else {
+    } else if (DOM.loginSubmitBtn) {
         DOM.loginSubmitBtn.addEventListener('click', handleLoginSubmit);
     }
 
-    DOM.adminLogoutBtn.addEventListener('click', () => {
-        isAdmin = false;
-        isOperator = false;
-        updateAccessControlUI();
-        window.alertSwal("Anda telah keluar dari akun. Tab Barang Habis Pakai dan fitur pengelola telah disembunyikan.");
-    });
+    if (DOM.adminLogoutBtn) {
+        DOM.adminLogoutBtn.addEventListener('click', () => {
+            isAdmin = false;
+            isOperator = false;
+            updateAccessControlUI();
+            window.alertSwal("Anda telah keluar dari akun. Tab Barang Habis Pakai dan fitur pengelola telah disembunyikan.");
+        });
+    }
 
-    DOM.addEventBtn.addEventListener('click', () => {
-        openEventModal();
-    });
-    DOM.closeEventModal.addEventListener('click', () => {
-        DOM.eventModal.classList.add('hidden');
-    });
-    DOM.cancelEventBtn.addEventListener('click', () => {
-        DOM.eventModal.classList.add('hidden');
-    });
+    if (DOM.addEventBtn) {
+        DOM.addEventBtn.addEventListener('click', () => {
+            openEventModal();
+        });
+    }
+    if (DOM.closeEventModal) {
+        DOM.closeEventModal.addEventListener('click', () => {
+            if (DOM.eventModal) DOM.eventModal.classList.add('hidden');
+        });
+    }
+    if (DOM.cancelEventBtn) {
+        DOM.cancelEventBtn.addEventListener('click', () => {
+            if (DOM.eventModal) DOM.eventModal.classList.add('hidden');
+        });
+    }
 
     const formationInput = document.getElementById('eventFormationInput');
     if (formationInput) {
@@ -3454,61 +3523,68 @@ function setupEventListeners() {
         });
     }
 
-    DOM.newFacilityName.addEventListener('input', (e) => {
-        renderFacilityAdminList(e.target.value);
-    });
+    if (DOM.newFacilityName) {
+        DOM.newFacilityName.addEventListener('input', (e) => {
+            renderFacilityAdminList(e.target.value);
+        });
+    }
 
-    DOM.addFacilityBtn.addEventListener('click', async () => {
-        const newFac = DOM.newFacilityName.value.trim();
-        if (!newFac) return;
+    if (DOM.addFacilityBtn) {
+        DOM.addFacilityBtn.addEventListener('click', async () => {
+            const newFac = DOM.newFacilityName ? DOM.newFacilityName.value.trim() : '';
+            if (!newFac) return;
 
-        const normalizedNew = normalizeFacilityName(newFac);
-        const exists = facilities.some(f => normalizeFacilityName(f) === normalizedNew);
+            const normalizedNew = normalizeFacilityName(newFac);
+            const exists = facilities.some(f => normalizeFacilityName(f) === normalizedNew);
 
-        if (!exists) {
-            facilities.push(newFac);
-            DOM.newFacilityName.value = '';
-            await saveToDatabase('settings', 'facilities', { list: facilities });
-            renderFacilities();
-        }
-    });
-
-    DOM.importFacilityBtn.addEventListener('click', () => {
-        const file = DOM.csvFacilityInput.files[0];
-        if (!file) {
-            window.alertSwal('Silakan pilih file CSV terlebih dahulu.');
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = async function (e) {
-            const text = e.target.result;
-            const rawItems = text.split(/[\r\n,]+/);
-            let addedCount = 0;
-
-            rawItems.forEach(item => {
-                const trimmed = item.trim().replace(/^["']|["']$/g, '');
-                if (trimmed) {
-                    const normalizedTrimmed = normalizeFacilityName(trimmed);
-                    const exists = facilities.some(f => normalizeFacilityName(f) === normalizedTrimmed);
-                    if (!exists) {
-                        facilities.push(trimmed);
-                        addedCount++;
-                    }
-                }
-            });
-
-            if (addedCount > 0) {
+            if (!exists) {
+                facilities.push(newFac);
+                if (DOM.newFacilityName) DOM.newFacilityName.value = '';
                 await saveToDatabase('settings', 'facilities', { list: facilities });
                 renderFacilities();
-                window.alertSwal(`Berhasil mengimpor ${addedCount} fasilitas baru!`);
-            } else {
-                window.alertSwal('Tidak ada fasilitas baru yang ditambahkan (data kosong/duplikat).');
             }
-            DOM.csvFacilityInput.value = '';
-        };
-        reader.readAsText(file);
-    });
+        });
+    }
+
+    if (DOM.importFacilityBtn) {
+        DOM.importFacilityBtn.addEventListener('click', () => {
+            if (!DOM.csvFacilityInput) return;
+            const file = DOM.csvFacilityInput.files[0];
+            if (!file) {
+                window.alertSwal('Silakan pilih file CSV terlebih dahulu.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function (e) {
+                const text = e.target.result;
+                const rawItems = text.split(/[\r\n,]+/);
+                let addedCount = 0;
+
+                rawItems.forEach(item => {
+                    const trimmed = item.trim().replace(/^["']|["']$/g, '');
+                    if (trimmed) {
+                        const normalizedTrimmed = normalizeFacilityName(trimmed);
+                        const exists = facilities.some(f => normalizeFacilityName(f) === normalizedTrimmed);
+                        if (!exists) {
+                            facilities.push(trimmed);
+                            addedCount++;
+                        }
+                    }
+                });
+
+                if (addedCount > 0) {
+                    await saveToDatabase('settings', 'facilities', { list: facilities });
+                    renderFacilities();
+                    window.alertSwal(`Berhasil mengimpor ${addedCount} fasilitas baru!`);
+                } else {
+                    window.alertSwal('Tidak ada fasilitas baru yang ditambahkan (data kosong/duplikat).');
+                }
+                if (DOM.csvFacilityInput) DOM.csvFacilityInput.value = '';
+            };
+            reader.readAsText(file);
+        });
+    }
 
     if (DOM.quickAddFacilityBtn) {
         DOM.quickAddFacilityBtn.addEventListener('click', async () => {

@@ -1022,6 +1022,7 @@ body.admin-mode .card-actions {
     margin-bottom: 1.2rem;
 }
 
+
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1051,15 +1052,27 @@ body.admin-mode .card-actions {
     box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1);
 }
 
-/* Fix for iOS/mobile date input showing solid grey box */
+/* Fix for iOS/mobile date input showing solid grey box / blank white box */
 input[type="date"].form-control {
+    -webkit-appearance: none;
+    appearance: none;
     background-color: #ffffff;
     color: var(--color-text);
-    min-height: 38px;
-    min-width: 130px;
+    min-height: 46px;
+    padding: 0.5rem 0.8rem;
+    width: 100%;
+    display: block;
+    font-family: inherit;
 }
 
 input[type="date"].form-control::-webkit-datetime-edit {
+    color: var(--color-text);
+    display: block;
+}
+input[type="date"].form-control::-webkit-datetime-edit-text,
+input[type="date"].form-control::-webkit-datetime-edit-month-field,
+input[type="date"].form-control::-webkit-datetime-edit-day-field,
+input[type="date"].form-control::-webkit-datetime-edit-year-field {
     color: var(--color-text);
 }
 
@@ -1085,10 +1098,6 @@ input[type="date"].form-control::-webkit-datetime-edit {
     display: flex;
     gap: 0.5rem;
     margin-bottom: 1rem;
-}
-
-.admin-list {
-    list-style: none;
 }
 
 .admin-list li {
