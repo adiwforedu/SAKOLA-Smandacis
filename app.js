@@ -1798,15 +1798,16 @@ window.showReportPhoto = function (facName) {
     const report = pemilahanSampah.find(r => r.lokasi === facName);
     if (report && report.imageUrl) {
         Swal.fire({
+            title: 'Foto Laporan ' + facName,
             imageUrl: report.imageUrl,
             imageAlt: 'Foto Laporan ' + facName,
+            width: '800px',
+            imageWidth: '100%',
+            imageHeight: 'auto',
             showConfirmButton: true,
             confirmButtonText: 'Tutup',
-            background: 'rgba(30, 41, 59, 0.95)',
-            color: '#f8fafc',
-            customClass: {
-                popup: 'swal-wide'
-            }
+            background: 'rgba(30, 41, 59, 0.98)',
+            color: '#f8fafc'
         });
     }
 };

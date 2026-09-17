@@ -318,60 +318,75 @@ body.admin-mode .cms-editable:hover::after {
     /* Fix Safari layout bug and optimize space */
     .quick-report-table-wrapper {
         overflow-y: auto;
-        max-height: 65vh;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        margin: 0 -1rem;
-        padding: 0 1rem;
+        max-height: none;
+        overflow-x: hidden;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        border: none;
+        box-shadow: none;
     }
 
-    .quick-report-table {
-        min-width: 100%;
-        width: 100%;
+    .quick-report-table, .quick-report-table tbody {
+        display: block !important;
+        width: 100% !important;
     }
 
     .quick-report-table thead {
-        display: table-header-group !important;
+        display: none !important;
     }
 
     .quick-report-table tbody tr {
-        display: table-row !important;
-        background: transparent !important;
-        box-shadow: none !important;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        background: #ffffff !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(0, 0, 0, 0.05) !important;
+        padding: 12px !important;
+        margin-bottom: 12px !important;
     }
 
     .quick-report-table tbody tr::before {
         display: none !important;
-        /* Hide left border highlight that breaks table layout */
     }
 
-    .quick-report-table td,
-    .quick-report-table th {
-        display: table-cell !important;
-        white-space: nowrap !important;
-        padding: 10px 4px !important;
+    .quick-report-table td {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 10px 0 !important;
+        border-bottom: 1px dashed rgba(0, 0, 0, 0.08) !important;
+        white-space: normal !important;
+        text-align: right !important;
+    }
+
+    .quick-report-table td:last-child {
+        border-bottom: none !important;
     }
 
     .quick-report-table td::before {
-        display: none !important;
-        /* Hide data-labels for rows */
+        content: attr(data-label);
+        display: block !important;
+        text-align: left;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--color-text-muted);
+        flex-basis: 35%;
+        flex-shrink: 0;
+    }
+
+    .waste-toggle-group {
+        flex: 1;
+        justify-content: flex-end;
     }
 
     .waste-toggle-btn {
-        padding: 4px 8px;
-        /* Lebih ringkas di HP */
+        padding: 8px 12px;
         font-size: 0.85rem;
-    }
-
-    .btn-detail-quick {
-        padding: 4px 8px;
-        /* Lebih ringkas di HP */
-    }
-
-    .quick-report-table thead th {
-        top: 0;
-        /* Fix: Stick directly to top of scrolling wrapper on mobile */
+        flex: 1;
+        justify-content: center;
+        max-width: 120px;
     }
 
     .quick-report-header>div:last-child {
